@@ -1,0 +1,120 @@
+// E-REKOM — Demo data store (mirror dari skema Supabase produksi di supabase.sql)
+// Ketika env Supabase dikonfigurasi, aplikasi memakai Supabase (Postgres + RLS).
+// Ketika tidak, store lokal ini dipakai sebagai "Mode Demo".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String? // hanya untuk Mode Demo (sha256)
+  namaLengkap  String
+  nik          String?
+  noHp         String?
+  asalInstansi String?
+  jabatan      String?
+  role         String   @default("pemohon") // pemohon | verifikator_bidang | admin_tu | kabid | kadis | super_admin
+  bidang       String? // untuk verifikator_bidang: SDMK | Yankes | Farmalkes | Sekretariat
+  fotoUrl      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pengajuan     Pengajuan[]
+  notifications Notification[]
+
+  aktivitasTracking TrackingStatus[] @relation("UserActivityTracking")
+}
+
+model JenisRekom {
+  id              String   @id @default(cuid())
+  kodeJenis       String   @unique
+  namaJenis       String
+  deskripsi       String?
+  icon            String   @default("FileText")
+  warna           String   @default("#0F766E")
+  bidang          String   @default("Sekretariat") // SDMK | Yankes | Farmalkes | Sekretariat
+  persyaratanJson String   @default("{}")
+  templateNomor   String   @default("440/{seq}/{kode}/Dinkes-Kukar/{year}")
+  isActive        Boolean  @default(true)
+  urutan          Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  pengajuan Pengajuan[]
+}
+
+model Pengajuan {
+  id                 String    @id @default(cuid())
+  pemohonId          String
+  jenisId            String
+  judulPengajuan     String
+  dataFormJson       String    @default("{}")
+  status             String    @default("draft") // draft | diajukan | diverifikasi_bidang | perlu_perbaikan | disetujui_kabid | menunggu_ttd_kadis | terbit | ditolak
+  catatanVerifikator String?
+  nomorSurat         String?
+  tglTerbit          DateTime?
+  fileRekomPdfUrl    String?
+  qrCodeId           String?   @unique
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  pemohon       User               @relation(fields: [pemohonId], references: [id], onDelete: Cascade)
+  jenis         JenisRekom         @relation(fields: [jenisId], references: [id])
+  dokumen       DokumenPendukung[]
+  tracking      TrackingStatus[]
+  notifications Notification[]
+
+  @@index([status])
+  @@index([pemohonId])
+  @@index([jenisId])
+}
+
+model DokumenPendukung {
+  id          String   @id @default(cuid())
+  pengajuanId String
+  namaDokumen String
+  fileUrl     String // path lokal (/api/files/...) atau URL Supabase Storage
+  tipeFile    String // mime type
+  ukuran      Int      @default(0) // bytes
+  createdAt   DateTime @default(now())
+
+  pengajuan Pengajuan @relation(fields: [pengajuanId], references: [id], onDelete: Cascade)
+}
+
+model TrackingStatus {
+  id          String   @id @default(cuid())
+  pengajuanId String
+  dariStatus  String?
+  keStatus    String
+  olehUserId  String?
+  olehNama    String?
+  catatan     String?
+  createdAt   DateTime @default(now())
+
+  pengajuan Pengajuan @relation(fields: [pengajuanId], references: [id], onDelete: Cascade)
+  olehUser  User?     @relation("UserActivityTracking", fields: [olehUserId], references: [id], onDelete: SetNull)
+
+  @@index([pengajuanId])
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  pengajuanId String?
+  judul       String
+  pesan       String
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pengajuan Pengajuan? @relation(fields: [pengajuanId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
