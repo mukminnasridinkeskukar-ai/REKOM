@@ -86,6 +86,23 @@ export default function AdminJenisPage() {
     return JSON.stringify({ fields: form.fields, dokumen: form.dokumen }, null, 2);
   }, [form, modeJson, jsonText]);
 
+  /** Validasi langsung Mode JSON: null = valid, string = pesan galat */
+  const jsonGalat = useMemo(() => {
+    if (!modeJson) return null;
+    try {
+      const p = JSON.parse(jsonText);
+      if (typeof p !== "object" || p === null || Array.isArray(p)) return "Harus objek { fields, dokumen }.";
+      if (p.fields !== undefined && !Array.isArray(p.fields)) return '"fields" harus berupa array.';
+      if (p.dokumen !== undefined && !Array.isArray(p.dokumen)) return '"dokumen" harus berupa array.';
+      for (const f of p.fields ?? []) {
+        if (f.type === "select" && !Array.isArray(f.options)) return `Kolom "${f.label ?? f.key}" bertipe select wajib punya "options".`;
+      }
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }, [modeJson, jsonText]);
+
   const bukaBaru = () => {
     setForm(KOSONG);
     setModeJson(false);
@@ -330,27 +347,61 @@ export default function AdminJenisPage() {
               </div>
 
               {modeJson ? (
-                <Textarea rows={12} className="font-mono text-xs" value={jsonText} onChange={(e) => setJsonText(e.target.value)} />
+                <div className="space-y-1.5">
+                  <Textarea
+                    rows={12}
+                    className="font-mono text-xs"
+                    value={jsonText}
+                    onChange={(e) => setJsonText(e.target.value)}
+                    placeholder={`Contoh:\n{\n  "fields": [\n    { "key": "keperluan", "label": "Keperluan", "type": "text", "required": true },\n    { "key": "poli_tujuan", "label": "Poli tujuan", "type": "select", "required": true, "options": ["Umum", "Gigi", "Farmasi"] }\n  ],\n  "dokumen": [\n    { "nama": "Surat permohonan", "required": true }\n  ]\n}`}
+                  />
+                  {jsonGalat ? (
+                    <p className="text-xs font-medium text-red-500">✗ {jsonGalat}</p>
+                  ) : (
+                    <p className="text-xs font-medium text-emerald-600">✓ JSON valid</p>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    Struktur: objek dengan "fields" (kolom formulir) dan "dokumen" (berkas yang diminta). Tipe kolom: text, textarea, number, date, select. Kolom bertipe <b>select</b> wajib punya "options" berupa daftar pilihan.
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Kolom formulir</p>
                   {form.fields.map((f, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_130px_70px_36px] items-center gap-2">
-                      <Input placeholder={`Label kolom ${i + 1}`} value={f.label} onChange={(e) => setField(i, { label: e.target.value, key: e.target.value.toLowerCase().replace(/\s+/g, "_").slice(0, 40) || `kolom_${i + 1}` })} />
-                      <Select value={f.type} onValueChange={(v) => setField(i, { type: v as FormField["type"] })}>
-                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {TIPE_FIELD.map((t) => (
-                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <input type="checkbox" checked={f.required} onChange={(e) => setField(i, { required: e.target.checked })} /> Wajib
-                      </label>
-                      <button type="button" onClick={() => setForm({ ...form, fields: form.fields.filter((_, xi) => xi !== i) })} className="text-red-400 hover:text-red-600">
-                        <Trash2 className="size-4" />
-                      </button>
+                    <div key={i} className="space-y-1.5">
+                      <div className="grid grid-cols-[1fr_130px_70px_36px] items-center gap-2">
+                        <Input placeholder={`Label kolom ${i + 1}`} value={f.label} onChange={(e) => setField(i, { label: e.target.value, key: e.target.value.toLowerCase().replace(/\s+/g, "_").slice(0, 40) || `kolom_${i + 1}` })} />
+                        <Select
+                          value={f.type}
+                          onValueChange={(v) =>
+                            setField(i, {
+                              type: v as FormField["type"],
+                              ...(v === "select" && !f.options ? { options: ["Pilihan 1", "Pilihan 2"] } : {}),
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {TIPE_FIELD.map((t) => (
+                              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <input type="checkbox" checked={f.required} onChange={(e) => setField(i, { required: e.target.checked })} /> Wajib
+                        </label>
+                        <button type="button" onClick={() => setForm({ ...form, fields: form.fields.filter((_, xi) => xi !== i) })} className="text-red-400 hover:text-red-600">
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                      {f.type === "select" && (
+                        <Input
+                          className="ml-1 text-xs"
+                          placeholder="Isi pilihan dipisah koma, mis: Umum, Gigi, Farmasi"
+                          value={(f.options ?? []).join(", ")}
+                          onChange={(e) => setField(i, { options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+                        />
+                      )}
                     </div>
                   ))}
                   <Button type="button" size="sm" variant="outline" onClick={() => setForm({ ...form, fields: [...form.fields, { key: `kolom_${form.fields.length + 1}`, label: "", type: "text", required: true }] })}>
@@ -382,7 +433,7 @@ export default function AdminJenisPage() {
               </label>
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={() => setBuka(false)}>Batal</Button>
-                <Button onClick={simpan} disabled={busy || !form.kodeJenis || !form.namaJenis} className="bg-brand">
+                <Button onClick={simpan} disabled={busy || !form.kodeJenis || !form.namaJenis || (modeJson && !!jsonGalat)} className="bg-brand">
                   {busy && <Loader2 className="size-4 animate-spin" />} Simpan
                 </Button>
               </div>
