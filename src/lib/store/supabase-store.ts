@@ -146,7 +146,7 @@ function toDTO(p: RowPengajuan, user: SessionUser): PengajuanDTO {
     })),
     tracking: (p.tracking_status ?? [])
       .slice()
-      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
       .map((t) => ({
         id: t.id,
         dariStatus: t.dari_status,
@@ -229,7 +229,7 @@ export class SupabaseStore implements Store {
   }
 
   private selectDetail() {
-    return `*, master_jenis_rekom(*), profiles(*), dokumen_pendukung(*), tracking_status(profiles(nama_lengkap))`;
+    return `*, master_jenis_rekom(*), profiles(*), dokumen_pendukung(*), tracking_status(id, created_at, dari_status, ke_status, catatan, profiles(nama_lengkap))`;
   }
 
   async listPengajuan(user: SessionUser, f: PengajuanFilters): Promise<PengajuanDTO[]> {
