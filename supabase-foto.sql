@@ -3,6 +3,9 @@
 -- Membuat bucket publik "foto-profil" + kebijakan keamanannya.
 -- ============================================================================
 
+-- 0) Pastikan kolom foto_url ada di tabel profiles (idempotent)
+alter table public.profiles add column if not exists foto_url text;
+
 -- 1) Bucket publik untuk foto profil
 insert into storage.buckets (id, name, public)
 values ('foto-profil', 'foto-profil', true)
