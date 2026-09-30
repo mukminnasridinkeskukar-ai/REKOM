@@ -17,12 +17,20 @@ import {
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/config";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { AksiTersedia, JenisRekomDTO, MeDTO, PengajuanDTO, Status } from "@/lib/types";
 import { STATUS_META } from "@/lib/types";
 import { toast } from "sonner";
 
 export function DashboardClient({ user }: { user: MeDTO }) {
   const searchParams = useSearchParams();
+  const inisial = user.namaLengkap
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0])
+    .join("")
+    .toUpperCase();
   const [semua, setSemua] = useState<PengajuanDTO[]>([]);
   const [jenisList, setJenisList] = useState<JenisRekomDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,11 +136,19 @@ export function DashboardClient({ user }: { user: MeDTO }) {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 sm:text-2xl">Dashboard Pengajuan</h1>
-          <p className="text-sm text-muted-foreground">
-            Selamat datang, {user.namaLengkap} — kelola semua rekomendasi di satu tempat.
-          </p>
+        <div className="flex items-center gap-3.5">
+          <Avatar className="size-12 border-2 border-white shadow-md ring-1 ring-slate-200 sm:size-14">
+            {user.fotoUrl && <AvatarImage src={user.fotoUrl} alt={user.namaLengkap} />}
+            <AvatarFallback className="bg-gradient-to-br from-brand to-teal-brand text-sm font-extrabold text-white sm:text-base">
+              {inisial}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 sm:text-2xl">Dashboard Pengajuan</h1>
+            <p className="text-sm text-muted-foreground">
+              Selamat datang, {user.namaLengkap} — kelola semua rekomendasi di satu tempat.
+            </p>
+          </div>
         </div>
         <Button asChild className="bg-teal-brand hover:bg-teal-brand/90">
           <a href="/pengajuan/baru">+ Pengajuan Baru</a>

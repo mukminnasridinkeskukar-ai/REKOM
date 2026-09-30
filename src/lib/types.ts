@@ -141,6 +141,7 @@ export interface PemohonDTO {
   jabatan: string | null;
   noHp: string | null;
   nik: string | null;
+  fotoUrl?: string | null;
 }
 
 export interface DokumenDTO {

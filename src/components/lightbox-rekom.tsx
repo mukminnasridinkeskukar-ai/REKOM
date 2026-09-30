@@ -23,6 +23,7 @@ import {
 import { StatusBadge } from "@/components/status-badge";
 import { TimelineStepper } from "@/components/timeline-stepper";
 import { tanggalSingkat } from "@/components/card-rekom";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -378,21 +379,34 @@ export function LightboxRekom({
                   <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <UserRound className="size-4" /> Pemohon
                   </p>
-                  <div className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 p-3 sm:grid-cols-2">
-                    {[
-                      { icon: UserRound, label: "Nama", nilai: p.pemohon?.namaLengkap },
-                      { icon: IdCard, label: "NIK", nilai: p.pemohon?.nik },
-                      { icon: Building2, label: "Instansi", nilai: p.pemohon?.asalInstansi },
-                      { icon: Phone, label: "No. HP", nilai: p.pemohon?.noHp },
-                    ].map((row) => (
-                      <div key={row.label} className="flex items-center gap-2 text-sm">
-                        <row.icon className="size-3.5 shrink-0 text-slate-400" />
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{row.label}</p>
-                          <p className="truncate font-medium">{row.nilai || "-"}</p>
+                  <div className="flex flex-col gap-3 rounded-xl border border-slate-200 p-3 sm:flex-row sm:items-start">
+                    <Avatar className="mx-auto size-14 shrink-0 ring-2 ring-slate-100 sm:mx-0">
+                      {p.pemohon?.fotoUrl && <AvatarImage src={p.pemohon.fotoUrl} alt={p.pemohon.namaLengkap} />}
+                      <AvatarFallback className="bg-gradient-to-br from-brand to-teal-brand text-sm font-extrabold text-white">
+                        {(p.pemohon?.namaLengkap ?? "?")
+                          .split(" ")
+                          .slice(0, 2)
+                          .map((s) => s[0])
+                          .join("")
+                          .toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+                      {[
+                        { icon: UserRound, label: "Nama", nilai: p.pemohon?.namaLengkap },
+                        { icon: IdCard, label: "NIK", nilai: p.pemohon?.nik },
+                        { icon: Building2, label: "Instansi", nilai: p.pemohon?.asalInstansi },
+                        { icon: Phone, label: "No. HP", nilai: p.pemohon?.noHp },
+                      ].map((row) => (
+                        <div key={row.label} className="flex items-center gap-2 text-sm">
+                          <row.icon className="size-3.5 shrink-0 text-slate-400" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{row.label}</p>
+                            <p className="truncate font-medium">{row.nilai || "-"}</p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </section>
 

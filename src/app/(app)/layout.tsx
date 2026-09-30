@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     jabatan: null,
     role: user.role,
     bidang: user.bidang,
-    fotoUrl: null,
+    fotoUrl: user.fotoUrl,
   };
 
   return <AppShell user={me}>{children}</AppShell>;

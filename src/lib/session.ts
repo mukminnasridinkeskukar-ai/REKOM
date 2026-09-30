@@ -12,6 +12,7 @@ export interface SessionUser {
   namaLengkap: string;
   role: Role;
   bidang: string | null;
+  fotoUrl: string | null;
 }
 
 /**
@@ -30,7 +31,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       if (!user) return null;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("nama_lengkap, role, bidang, email")
+        .select("nama_lengkap, role, bidang, email, foto_url")
         .eq("id", user.id)
         .single();
       if (!profile) return null;
@@ -40,6 +41,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
         namaLengkap: (profile.nama_lengkap as string) ?? "",
         role: profile.role as Role,
         bidang: (profile.bidang as string | null) ?? null,
+        fotoUrl: ((profile as any).foto_url as string | null) ?? null,
       };
     } catch {
       return null;
@@ -58,6 +60,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     namaLengkap: u.namaLengkap,
     role: u.role as Role,
     bidang: u.bidang,
+    fotoUrl: u.fotoUrl,
   };
 }
 

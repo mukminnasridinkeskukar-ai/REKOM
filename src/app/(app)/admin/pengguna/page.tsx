@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { ROLE_LABEL, BIDANG_LIST } from "@/lib/types";
 import type { AdminUserDTO } from "@/lib/store";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const ROLES = Object.entries(ROLE_LABEL);
 
@@ -83,7 +83,8 @@ export default function AdminPenggunaPage() {
               <tr key={u.id} className="hover:bg-slate-50/60">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <Avatar className="size-9">
+                    <Avatar className="size-9 ring-1 ring-slate-200">
+                      {u.fotoUrl && <AvatarImage src={u.fotoUrl} alt={u.namaLengkap} />}
                       <AvatarFallback className="bg-brand-50 text-xs font-bold text-brand">
                         {u.namaLengkap.split(" ").slice(0, 2).map((s) => s[0]).join("").toUpperCase()}
                       </AvatarFallback>

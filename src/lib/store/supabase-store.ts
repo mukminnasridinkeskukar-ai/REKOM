@@ -125,6 +125,7 @@ function toDTO(p: RowPengajuan, user: SessionUser): PengajuanDTO {
           jabatan: pemohonRow.jabatan,
           noHp: pemohonRow.no_hp,
           nik: pemohonRow.nik,
+          fotoUrl: (pemohonRow as any).foto_url ?? null,
         }
       : null,
     judulPengajuan: p.judul_pengajuan,

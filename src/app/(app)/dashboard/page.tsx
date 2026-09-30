@@ -19,7 +19,7 @@ export default async function DashboardPage() {
     jabatan: null,
     role: user.role,
     bidang: user.bidang,
-    fotoUrl: null,
+    fotoUrl: user.fotoUrl,
   };
   return (
     <Suspense

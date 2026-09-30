@@ -8,7 +8,7 @@ import { isSupabaseConfigured } from "@/lib/config";
 import type { MeDTO, NotificationDTO } from "@/lib/types";
 import { ROLE_LABEL } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -242,7 +242,8 @@ export function AppShell({ user, children }: { user: MeDTO; children: React.Reac
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 transition-colors hover:bg-slate-100">
-                  <Avatar className="size-8">
+                  <Avatar className="size-8 ring-2 ring-white">
+                    {user.fotoUrl && <AvatarImage src={user.fotoUrl} alt={user.namaLengkap} />}
                     <AvatarFallback className="bg-teal-brand text-xs font-bold text-white">
                       {initial(user.namaLengkap)}
                     </AvatarFallback>

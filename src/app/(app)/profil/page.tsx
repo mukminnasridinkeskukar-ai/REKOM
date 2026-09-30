@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, Save } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Camera, Loader2, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { resizeGambarPersegi } from "@/lib/image";
 import { ROLE_LABEL } from "@/lib/types";
 import type { MeDTO } from "@/lib/types";
 
@@ -17,9 +20,12 @@ interface ProfilFull extends MeDTO {
 }
 
 export default function ProfilPage() {
+  const router = useRouter();
   const [me, setMe] = useState<ProfilFull | null>(null);
   const [form, setForm] = useState({ namaLengkap: "", nik: "", noHp: "", asalInstansi: "", jabatan: "" });
   const [busy, setBusy] = useState(false);
+  const [busyFoto, setBusyFoto] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -57,6 +63,57 @@ export default function ProfilPage() {
     }
   };
 
+  const inisial = (me?.namaLengkap ?? "")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0])
+    .join("")
+    .toUpperCase();
+
+  /** Unggah / ganti foto: resize jadi persegi 512px lalu kirim ke /api/foto */
+  const gantiFoto = async (file: File | undefined) => {
+    if (!file || !me) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("File harus berupa gambar (JPG/PNG/WebP).");
+      return;
+    }
+    setBusyFoto(true);
+    try {
+      const blob = await resizeGambarPersegi(file, 512, 0.85);
+      const fd = new FormData();
+      fd.append("file", new File([blob], "avatar.jpg", { type: "image/jpeg" }));
+      const res = await fetch("/api/foto", { method: "POST", body: fd });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Gagal mengunggah foto.");
+      setMe({ ...me, fotoUrl: j.fotoUrl });
+      router.refresh(); // segarkan avatar di header/dashboard
+      toast.success("Foto profil berhasil diperbarui.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusyFoto(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const hapusFoto = async () => {
+    if (!me) return;
+    setBusyFoto(true);
+    try {
+      const res = await fetch("/api/foto", { method: "DELETE" });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Gagal menghapus foto.");
+      setMe({ ...me, fotoUrl: null });
+      router.refresh();
+      toast.success("Foto profil dihapus.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusyFoto(false);
+    }
+  };
+
   if (!me) {
     return (
       <div className="flex justify-center py-20 text-muted-foreground">
@@ -74,16 +131,58 @@ export default function ProfilPage() {
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center gap-4">
-          <span className="flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand to-teal-brand text-xl font-extrabold text-white">
-            {me.namaLengkap.split(" ").slice(0, 2).map((s) => s[0]).join("").toUpperCase()}
-          </span>
-          <div>
-            <p className="font-bold">{me.namaLengkap}</p>
-            <p className="text-sm text-muted-foreground">{me.email}</p>
+          <div className="relative">
+            <Avatar className="size-20 ring-2 ring-brand/20 sm:size-24">
+              {me.fotoUrl && <AvatarImage src={me.fotoUrl} alt={me.namaLengkap} />}
+              <AvatarFallback className="bg-gradient-to-br from-brand to-teal-brand text-xl font-extrabold text-white">
+                {inisial}
+              </AvatarFallback>
+            </Avatar>
+            {/* tombol kamera overlay — klik untuk pilih foto */}
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={busyFoto}
+              aria-label="Ganti foto profil"
+              className="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full bg-brand text-white shadow-md ring-2 ring-white transition-colors hover:bg-brand/90 disabled:opacity-60"
+            >
+              {busyFoto ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/*"
+              className="hidden"
+              onChange={(e) => void gantiFoto(e.target.files?.[0])}
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate font-bold">{me.namaLengkap}</p>
+            <p className="truncate text-sm text-muted-foreground">{me.email}</p>
             <span className="mt-1 inline-block rounded-full bg-teal-50-brand px-2.5 py-0.5 text-xs font-medium text-teal-brand">
               {ROLE_LABEL[me.role]}
               {me.bidang ? ` · ${me.bidang}` : ""}
             </span>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={busyFoto}
+                className="text-xs font-semibold text-teal-brand hover:underline disabled:opacity-60"
+              >
+                Ganti Foto
+              </button>
+              {me.fotoUrl && (
+                <button
+                  type="button"
+                  onClick={hapusFoto}
+                  disabled={busyFoto}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 hover:underline disabled:opacity-60"
+                >
+                  <Trash2 className="size-3" /> Hapus
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
