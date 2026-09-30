@@ -33,6 +33,30 @@ const TIPE_FIELD = [
   { value: "select", label: "Pilihan (dropdown)" },
 ] as const;
 
+// Input pilihan dropdown: teks disimpan lokal agar koma TETAP terlihat saat mengetik,
+// lalu dipecah jadi daftar pilihan. Bug lama: input controlled -> koma langsung
+// terhapus saat diketik sehingga semua pilihan menyatu jadi satu.
+function OptionsInput({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const [teks, setTeks] = useState(value.join(", "));
+  // sinkron bila daftar pilihan berubah dari luar (edit JSON, ganti tipe, dsb.)
+  useEffect(() => {
+    const normal = teks.split(",").map((s) => s.trim()).filter(Boolean).join(", ");
+    if (normal !== value.join(", ")) setTeks(value.join(", "));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <Input
+      className="ml-1 text-xs"
+      placeholder="Isi pilihan dipisah koma, mis: Umum, Gigi, Farmasi"
+      value={teks}
+      onChange={(e) => {
+        setTeks(e.target.value);
+        onChange(e.target.value.split(",").map((s) => s.trim()).filter(Boolean));
+      }}
+    />
+  );
+}
+
 interface FormJenis {
   id?: string;
   kodeJenis: string;
@@ -395,12 +419,7 @@ export default function AdminJenisPage() {
                         </button>
                       </div>
                       {f.type === "select" && (
-                        <Input
-                          className="ml-1 text-xs"
-                          placeholder="Isi pilihan dipisah koma, mis: Umum, Gigi, Farmasi"
-                          value={(f.options ?? []).join(", ")}
-                          onChange={(e) => setField(i, { options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
-                        />
+                        <OptionsInput value={f.options ?? []} onChange={(options) => setField(i, { options })} />
                       )}
                     </div>
                   ))}

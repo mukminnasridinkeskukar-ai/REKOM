@@ -12,6 +12,14 @@ import {
 } from "@/components/ui/select";
 import type { FormField } from "@/lib/types";
 
+// Pilihan dropdown: pecah otomatis bila satu option masih memuat koma
+// (mis. data lama "Kedokteran, Gigi" tersimpan sebagai satu string), lalu dedup.
+function pilihanSelect(f: FormField): string[] {
+  return (f.options ?? [])
+    .flatMap((o) => String(o).split(",").map((s) => s.trim()).filter(Boolean))
+    .filter((o, i, a) => a.indexOf(o) === i);
+}
+
 export function DynamicForm({
   fields,
   values,
@@ -47,7 +55,7 @@ export function DynamicForm({
                   <SelectValue placeholder={`Pilih ${f.label.toLowerCase()}`} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(f.options ?? []).map((o) => (
+                  {pilihanSelect(f).map((o) => (
                     <SelectItem key={o} value={o}>
                       {o}
                     </SelectItem>
