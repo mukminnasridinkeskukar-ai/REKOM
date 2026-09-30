@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { getSessionUser } from "@/lib/session";
 import { getStore } from "@/lib/store";
 import { SuratRekomDocument } from "@/lib/pdf/surat";
+import { parseTemplateSurat, renderSuratIsi, petaDataSurat } from "@/lib/surat-template";
 import { isSupabaseConfigured } from "@/lib/config";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
@@ -67,22 +68,34 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const kadis = await kadisInfo();
     const dataForm = JSON.parse(pengajuan.dataFormJson || "{}") as Record<string, unknown>;
 
+    // Isi surat dari template jenis rekomendasi (bisa diedit admin) + data pengajuan
+    const tpl = parseTemplateSurat(pengajuan.jenis?.templateSurat ?? null);
+    const data = petaDataSurat({
+      nomorSurat: pengajuan.nomorSurat ?? "-",
+      tglTerbitLabel: tanggalID(pengajuan.tglTerbit ? new Date(pengajuan.tglTerbit) : new Date()),
+      namaPemohon: pengajuan.pemohon?.namaLengkap ?? "-",
+      nipPemohon: pengajuan.pemohon?.nik ?? "",
+      instansiPemohon: pengajuan.pemohon?.asalInstansi ?? "",
+      jabatanPemohon: pengajuan.pemohon?.jabatan ?? "",
+      noHpPemohon: pengajuan.pemohon?.noHp ?? "",
+      judul: pengajuan.judulPengajuan,
+      jenisNama: pengajuan.jenis?.namaJenis ?? "Rekomendasi",
+      kodeJenis: pengajuan.jenis?.kodeJenis ?? "",
+      bidang: pengajuan.jenis?.bidang ?? "",
+      namaKadis: kadis.nama,
+      nipKadis: kadis.nip,
+      dataForm,
+    });
+
     const buffer = await renderToBuffer(
       <SuratRekomDocument
         nomorSurat={pengajuan.nomorSurat ?? "-"}
         tglTerbitLabel={tanggalID(pengajuan.tglTerbit ? new Date(pengajuan.tglTerbit) : new Date())}
         verifikasiUrl={verifikasiUrl}
         qrDataUrl={qrDataUrl}
-        namaPemohon={pengajuan.pemohon?.namaLengkap ?? "-"}
-        nipPemohon={pengajuan.pemohon?.nik ?? ""}
-        instansiPemohon={pengajuan.pemohon?.asalInstansi ?? ""}
         namaKadis={kadis.nama}
         nipKadis={kadis.nip}
-        jenisNama={pengajuan.jenis?.namaJenis ?? "Rekomendasi"}
-        judul={pengajuan.judulPengajuan}
-        dataForm={dataForm}
-        kodeJenis={pengajuan.jenis?.kodeJenis ?? ""}
-        bidang={pengajuan.jenis?.bidang ?? ""}
+        isi={renderSuratIsi(tpl, data)}
       />
     );
 

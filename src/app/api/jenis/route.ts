@@ -37,6 +37,7 @@ export async function POST(req: Request) {
       templateNomor: String(body.templateNomor ?? "440/{seq}/{kode}/Dinkes-Kukar/{year}"),
       isActive: body.isActive !== false,
       urutan: Number(body.urutan ?? 99),
+      templateSurat: body.templateSurat !== undefined && body.templateSurat !== null ? String(body.templateSurat) : null,
     };
     const data = await store.createJenis(input);
     return Response.json({ data });

@@ -43,6 +43,7 @@ create table if not exists public.master_jenis_rekom (
                    check (bidang in ('SDMK','Yankes','Farmalkes','Sekretariat')),
   persyaratan_json jsonb not null default '{"fields":[],"dokumen":[]}',
   template_nomor   text not null default '440/{seq}/{kode}/Dinkes-Kukar/{year}',
+  template_surat   text,
   is_active        boolean not null default true,
   urutan           int not null default 99,
   created_at       timestamptz not null default now(),

@@ -132,6 +132,7 @@ export interface JenisRekomDTO {
   templateNomor: string;
   isActive: boolean;
   urutan: number;
+  templateSurat: string | null; // JSON TemplateSurat — null = pakai format default
 }
 
 export interface PemohonDTO {

@@ -27,6 +27,7 @@ export interface JenisInput {
   templateNomor: string;
   isActive: boolean;
   urutan: number;
+  templateSurat?: string | null; // JSON TemplateSurat — null/undefined = pakai default
 }
 
 export interface CreatePengajuanInput {

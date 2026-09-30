@@ -1,4 +1,6 @@
 // E-REKOM — Generator PDF surat rekomendasi resmi (kop surat Dinkes Kukar + TTD Kadis + QR verifikasi)
+// Isi surat diambil dari TemplateSurat per jenis rekomendasi (bisa diedit admin);
+// placeholder sudah disubstitusi sebelum props masuk ke komponen ini.
 import React from "react";
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 import { ALAMAT_INSTANSI } from "@/lib/config";
@@ -72,21 +74,25 @@ const styles = StyleSheet.create({
   verifText: { marginLeft: 12, fontSize: 8.5, color: "#374151", flex: 1, lineHeight: 1.5 },
 });
 
+/** Isi surat yang sudah jadi (placeholder telah diganti data pengajuan) */
+export interface SuratIsi {
+  judul: string;
+  lampiran: string | null; // null/kosong = baris lampiran tidak dicetak
+  pembuka: string;
+  barisIdentitas: [string, string][];
+  penutup: string[];
+  jabatanTtd: string;
+  kotaTtd: string;
+}
+
 export interface SuratProps {
   nomorSurat: string;
   tglTerbitLabel: string;
   verifikasiUrl: string; // URL absolut /verifikasi/{qr}
   qrDataUrl: string;
-  namaPemohon: string;
-  nipPemohon?: string;
-  instansiPemohon?: string;
   namaKadis: string;
   nipKadis: string;
-  jenisNama: string;
-  judul: string;
-  dataForm: Record<string, unknown>;
-  kodeJenis: string;
-  bidang: string;
+  isi: SuratIsi;
 }
 
 function garisIdentitas(label: string, nilai: string, titik = ":") {
@@ -133,36 +139,10 @@ function Emblem() {
 }
 
 export function SuratRekomDocument(props: SuratProps) {
-  const {
-    nomorSurat,
-    tglTerbitLabel,
-    verifikasiUrl,
-    qrDataUrl,
-    namaPemohon,
-    nipPemohon,
-    instansiPemohon,
-    namaKadis,
-    nipKadis,
-    jenisNama,
-    judul,
-    dataForm,
-  } = props;
-
-  const identitas: [string, string][] = [
-    ["Nama", namaPemohon],
-    ["NIP / NIK", nipPemohon || "-"],
-    ["Instansi", instansiPemohon || "-"],
-  ];
-  const extraKeys = ["profesi", "nama_pegawai", "nama_tenaga_kesehatan", "nama_klinik", "nama_usaha"];
-  for (const k of extraKeys) {
-    const v = dataForm[k];
-    if (typeof v === "string" && v && !identitas.some(([, val]) => val === v)) {
-      identitas.push([k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), v]);
-    }
-  }
+  const { nomorSurat, tglTerbitLabel, verifikasiUrl, qrDataUrl, namaKadis, nipKadis, isi } = props;
 
   return (
-    <Document title={`Surat Rekomendasi ${nomorSurat}`} author="Dinas Kesehatan Kabupaten Kutai Kartanegara">
+    <Document title={`Surat ${isi.judul} ${nomorSurat}`} author="Dinas Kesehatan Kabupaten Kutai Kartanegara">
       <Page size="A4" style={styles.page}>
         {/* ===== KOP SURAT ===== */}
         <View style={styles.kop} fixed>
@@ -183,42 +163,34 @@ export function SuratRekomDocument(props: SuratProps) {
         {/* ===== ISI SURAT ===== */}
         <View style={styles.nomorSurat}>
           <Text>Nomor : {nomorSurat}</Text>
-          <Text>Lampiran : 1 (satu) berkas persyaratan</Text>
+          {isi.lampiran && isi.lampiran.trim() ? <Text>Lampiran : {isi.lampiran}</Text> : null}
         </View>
-        <Text style={styles.judulSurat}>Surat Rekomendasi</Text>
+        <Text style={styles.judulSurat}>{isi.judul}</Text>
 
         <View style={styles.isi}>
-          <Text>
-            Yang bertanda tangan di bawah ini Kepala Dinas Kesehatan Kabupaten Kutai Kartanegara, dengan ini
-            memberikan rekomendasi kepada:
-          </Text>
+          <Text>{isi.pembuka}</Text>
         </View>
 
         <View style={styles.tabelIdentitas}>
-          {identitas.map(([label, nilai]) => garisIdentitas(label, nilai))}
+          {isi.barisIdentitas.map(([label, nilai]) => garisIdentitas(label, nilai))}
         </View>
 
         <View style={styles.penutup}>
-          <Text>
-            Sebagaimana tercantum dalam pengajuan berjudul &ldquo;{judul}&rdquo; dengan jenis rekomendasi{" "}
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>{jenisNama}</Text>. Bersama surat ini, bersangkutan
-            kami rekomendasikan untuk dapat diproses kelengkapan administrasi dan persyaratannya sesuai dengan
-            ketentuan peraturan perundang-undangan yang berlaku.
-          </Text>
-          <Text style={{ marginTop: 10 }}>
-            Demikian surat rekomendasi ini dibuat untuk dipergunakan sebagaimana mestinya.
-          </Text>
+          {isi.penutup.map((paragraf, i) => (
+            <Text key={i} style={i > 0 ? { marginTop: 10 } : undefined}>
+              {paragraf}
+            </Text>
+          ))}
         </View>
 
         {/* ===== TANDA TANGAN ===== */}
         <View style={styles.blokTtd}>
           <View style={styles.ttdKiri} />
           <View style={styles.ttdKanan}>
-            <Text style={styles.ttdTanggal}>Tenggarong, {tglTerbitLabel}</Text>
-            <Text style={styles.ttdJabatan}>
-              Kepala Dinas Kesehatan
-              <Text>{"\n"}Kabupaten Kutai Kartanegara,</Text>
+            <Text style={styles.ttdTanggal}>
+              {isi.kotaTtd}, {tglTerbitLabel}
             </Text>
+            <Text style={styles.ttdJabatan}>{isi.jabatanTtd}</Text>
             <Text style={styles.ttdNama}>{namaKadis}</Text>
             <Text style={styles.ttdNip}>{nipKadis}</Text>
           </View>

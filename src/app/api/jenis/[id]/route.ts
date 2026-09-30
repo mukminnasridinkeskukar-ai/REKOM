@@ -31,6 +31,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (body.templateNomor !== undefined) input.templateNomor = String(body.templateNomor);
     if (body.isActive !== undefined) input.isActive = Boolean(body.isActive);
     if (body.urutan !== undefined) input.urutan = Number(body.urutan);
+    if (body.templateSurat !== undefined)
+      input.templateSurat = body.templateSurat === null ? null : String(body.templateSurat);
     await store.updateJenis(id, input);
     return Response.json({ ok: true });
   } catch (e) {

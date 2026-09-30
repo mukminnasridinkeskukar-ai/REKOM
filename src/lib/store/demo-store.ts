@@ -203,6 +203,7 @@ export class DemoStore implements Store {
       templateNomor: j.templateNomor,
       isActive: j.isActive,
       urutan: j.urutan,
+      templateSurat: j.templateSurat ?? null,
     }));
   }
 
@@ -220,6 +221,7 @@ export class DemoStore implements Store {
       templateNomor: j.templateNomor,
       isActive: j.isActive,
       urutan: j.urutan,
+      templateSurat: j.templateSurat ?? null,
     };
   }
 

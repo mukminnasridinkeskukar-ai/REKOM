@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Pencil, Plus, Trash2, Code2, ListPlus } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, Code2, ListPlus, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { JenisIcon, ICON_CHOICES } from "@/components/jenis-icon";
+import { parseTemplateSurat, KUNCI_TETAP, type TemplateSurat } from "@/lib/surat-template";
 import type { FormField, JenisRekomDTO } from "@/lib/types";
 import { BIDANG_LIST } from "@/lib/types";
 
@@ -54,6 +55,241 @@ function OptionsInput({ value, onChange }: { value: string[]; onChange: (v: stri
         onChange(e.target.value.split(",").map((s) => s.trim()).filter(Boolean));
       }}
     />
+  );
+}
+
+/** Tab editor Template Surat — format surat per jenis mengikuti template resmi Dinkes */
+function TabTemplateSurat({
+  tpl,
+  setTpl,
+  tplDefault,
+  setTplDefault,
+  kunciTersedia,
+  onPratinjau,
+  onPakaiDefault,
+}: {
+  tpl: TemplateSurat;
+  setTpl: (t: TemplateSurat) => void;
+  tplDefault: boolean;
+  setTplDefault: (v: boolean) => void;
+  kunciTersedia: { kunci: string; label: string }[];
+  onPratinjau: () => void;
+  onPakaiDefault: () => void;
+}) {
+  const set = (patch: Partial<TemplateSurat>) => setTpl({ ...tpl, ...patch });
+
+  // teks penutup disimpan lokal agar baris kosong pemisah paragraf tetap terlihat saat mengetik
+  const [penutupTeks, setPenutupTeks] = useState(tpl.penutup.join("\n\n"));
+  useEffect(() => {
+    const normal = penutupTeks.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean).join("\n\n");
+    if (normal !== tpl.penutup.join("\n\n")) setPenutupTeks(tpl.penutup.join("\n\n"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tpl]);
+
+  if (tplDefault) {
+    return (
+      <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+        <p className="text-sm font-semibold">Template Surat</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Saat ini surat memakai <b>format bawaan sistem</b> (judul &ldquo;Surat Rekomendasi&rdquo;, redaksi standar,
+          identitas Nama / NIP-NIK / Instansi). Klik <b>Sesuaikan Format</b> untuk mengikuti template resmi Dinkes Anda.
+        </p>
+        <div className="flex gap-2">
+          <Button type="button" size="sm" className="bg-brand" onClick={() => setTplDefault(false)}>
+            <Pencil className="size-3.5" /> Sesuaikan Format
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={onPratinjau}>
+            <Eye className="size-3.5" /> Pratinjau
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3.5 rounded-xl border border-slate-200 p-3.5">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold">Template Surat (khusus jenis ini)</p>
+        <button type="button" onClick={onPakaiDefault} className="text-xs font-medium text-brand hover:underline">
+          Kembalikan Default
+        </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label className="mb-1.5 block text-sm">Judul Surat</Label>
+          <Input value={tpl.judul} onChange={(e) => set({ judul: e.target.value })} placeholder="Surat Rekomendasi" />
+        </div>
+        <div>
+          <Label className="mb-1.5 block text-sm">Kota Tanda Tangan</Label>
+          <Input value={tpl.kotaTtd} onChange={(e) => set({ kotaTtd: e.target.value })} placeholder="Tenggarong" />
+        </div>
+      </div>
+      <div>
+        <Label className="mb-1.5 block text-sm">Baris Lampiran</Label>
+        <Input value={tpl.lampiran} onChange={(e) => set({ lampiran: e.target.value })} placeholder="Kosongkan bila tidak perlu" />
+      </div>
+      <div>
+        <Label className="mb-1.5 block text-sm">Paragraf Pembuka</Label>
+        <Textarea rows={3} value={tpl.pembuka} onChange={(e) => set({ pembuka: e.target.value })} />
+      </div>
+
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <Label className="block text-sm">Baris Identitas Pemohon</Label>
+        </div>
+        <div className="space-y-2">
+          {tpl.barisIdentitas.map((b, i) => (
+            <div key={i} className="grid grid-cols-[140px_1fr_36px] items-center gap-2">
+              <Input
+                placeholder="Label"
+                value={b.label}
+                onChange={(e) => set({ barisIdentitas: tpl.barisIdentitas.map((x, xi) => (xi === i ? { ...x, label: e.target.value } : x)) })}
+              />
+              <Select
+                value={b.kunci}
+                onValueChange={(v) => set({ barisIdentitas: tpl.barisIdentitas.map((x, xi) => (xi === i ? { ...x, kunci: v } : x)) })}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(kunciTersedia.some((k) => k.kunci === b.kunci)
+                    ? kunciTersedia
+                    : [{ kunci: b.kunci, label: b.kunci }, ...kunciTersedia]
+                  ).map((k) => (
+                    <SelectItem key={k.kunci} value={k.kunci}>
+                      {`{${k.kunci}}`} — {k.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <button
+                type="button"
+                onClick={() => set({ barisIdentitas: tpl.barisIdentitas.filter((_, xi) => xi !== i) })}
+                className="text-red-400 hover:text-red-600"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => set({ barisIdentitas: [...tpl.barisIdentitas, { label: "", kunci: "nama_pemohon" }] })}
+          >
+            <Plus className="size-3.5" /> Tambah baris
+          </Button>
+        </div>
+      </div>
+
+      <div>
+        <Label className="mb-1.5 block text-sm">Paragraf Penutup</Label>
+        <Textarea
+          rows={5}
+          value={penutupTeks}
+          onChange={(e) => {
+            setPenutupTeks(e.target.value);
+            set({ penutup: e.target.value.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean) });
+          }}
+        />
+        <p className="mt-1 text-[11px] text-muted-foreground">Pisahkan tiap paragraf dengan satu baris kosong.</p>
+      </div>
+
+      <div>
+        <Label className="mb-1.5 block text-sm">Jabatan di Blok Tanda Tangan</Label>
+        <Textarea rows={2} value={tpl.jabatanTtd} onChange={(e) => set({ jabatanTtd: e.target.value })} />
+      </div>
+
+      <div className="rounded-lg bg-slate-50 p-2.5">
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Placeholder — klik untuk salin, tempel di kolom mana pun
+        </p>
+        <div className="flex flex-wrap gap-1">
+          {kunciTersedia.map((k) => (
+            <button
+              key={k.kunci}
+              type="button"
+              title={k.label}
+              onClick={() => {
+                navigator.clipboard?.writeText(`{${k.kunci}}`).catch(() => undefined);
+                toast.success(`{${k.kunci}} disalin`);
+              }}
+              className="rounded-md bg-white px-2 py-0.5 font-mono text-[10px] text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-brand-50 hover:text-brand hover:ring-brand/30"
+            >
+              {`{${k.kunci}}`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Button type="button" size="sm" variant="outline" onClick={onPratinjau}>
+        <Eye className="size-3.5" /> Pratinjau Surat (data contoh)
+      </Button>
+    </div>
+  );
+}
+
+/** Dialog pratinjau PDF surat — memakai endpoint /api/jenis/pratinjau-surat */
+function PratinjauSuratDialog({
+  state,
+  onClose,
+}: {
+  state: { open: boolean; jenisId?: string; templateSurat?: string | null };
+  onClose: () => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!state.open) return;
+    let objUrl: string | null = null;
+    let batal = false;
+    setLoading(true);
+    setUrl(null);
+    fetch("/api/jenis/pratinjau-surat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jenisId: state.jenisId, templateSurat: state.templateSurat }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error ?? "Gagal membuat pratinjau.");
+        }
+        const blob = await res.blob();
+        if (batal) return;
+        objUrl = URL.createObjectURL(blob);
+        setUrl(objUrl);
+      })
+      .catch((e) => {
+        if (!batal) toast.error((e as Error).message);
+      })
+      .finally(() => {
+        if (!batal) setLoading(false);
+      });
+    return () => {
+      batal = true;
+      if (objUrl) URL.revokeObjectURL(objUrl);
+    };
+  }, [state.open, state.jenisId, state.templateSurat]);
+
+  return (
+    <Dialog open={state.open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Pratinjau Surat — data contoh</DialogTitle>
+        </DialogHeader>
+        {loading ? (
+          <div className="flex justify-center py-16 text-muted-foreground">
+            <Loader2 className="mr-2 size-5 animate-spin" /> Menyiapkan PDF...
+          </div>
+        ) : url ? (
+          <iframe src={url} title="Pratinjau Surat" className="h-[70vh] w-full rounded-lg border" />
+        ) : (
+          <p className="py-10 text-center text-sm text-muted-foreground">Pratinjau tidak tersedia.</p>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -94,6 +330,10 @@ export default function AdminJenisPage() {
   const [modeJson, setModeJson] = useState(false);
   const [jsonText, setJsonText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"form" | "surat">("form");
+  const [tpl, setTpl] = useState<TemplateSurat>(parseTemplateSurat(null));
+  const [tplDefault, setTplDefault] = useState(true);
+  const [pratinjau, setPratinjau] = useState<{ open: boolean; jenisId?: string; templateSurat?: string | null }>({ open: false });
 
   const muat = async () => {
     const res = await fetch("/api/jenis?activeOnly=false");
@@ -131,6 +371,9 @@ export default function AdminJenisPage() {
     setForm(KOSONG);
     setModeJson(false);
     setJsonText("");
+    setTab("form");
+    setTpl(parseTemplateSurat(null));
+    setTplDefault(true);
     setBuka(true);
   };
 
@@ -155,6 +398,9 @@ export default function AdminJenisPage() {
       fields: p.fields ?? [],
       dokumen: p.dokumen ?? [],
     });
+    setTab("form");
+    setTpl(parseTemplateSurat(j.templateSurat));
+    setTplDefault(j.templateSurat == null);
     setModeJson(false);
     setBuka(true);
   };
@@ -179,6 +425,7 @@ export default function AdminJenisPage() {
         urutan: form.urutan,
         isActive: form.isActive,
         persyaratanJson,
+        templateSurat: tplDefault ? null : JSON.stringify(tpl),
       };
       const res = form.id
         ? await fetch(`/api/jenis/${form.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
@@ -215,6 +462,15 @@ export default function AdminJenisPage() {
 
   const setField = (i: number, patch: Partial<FormField>) =>
     setForm((f) => ({ ...f, fields: f.fields.map((x, xi) => (xi === i ? { ...x, ...patch } : x)) }));
+
+  /** Daftar placeholder yang tersedia: kunci tetap + semua kolom formulir jenis ini */
+  const kunciTersedia = useMemo(() => {
+    const base = KUNCI_TETAP.map((k) => ({ kunci: k.kunci, label: k.label }));
+    const tambahan = form.fields
+      .filter((f) => f.key && !base.some((b) => b.kunci === f.key))
+      .map((f) => ({ kunci: f.key, label: f.label || f.key }));
+    return [...base, ...tambahan];
+  }, [form.fields]);
 
   return (
     <div className="space-y-5">
@@ -256,6 +512,9 @@ export default function AdminJenisPage() {
               <p className="mt-2 line-clamp-2 min-h-8 text-xs text-muted-foreground">{j.deskripsi}</p>
               <p className="mt-2 truncate font-mono text-[10px] text-slate-400">{j.templateNomor}</p>
               <div className="mt-3 flex gap-1.5 border-t border-slate-100 pt-3">
+                <Button size="sm" variant="outline" onClick={() => setPratinjau({ open: true, jenisId: j.id })}>
+                  <Eye className="size-3.5" /> Pratinjau
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => bukaEdit(j)}>
                   <Pencil className="size-3.5" /> Edit
                 </Button>
@@ -274,7 +533,26 @@ export default function AdminJenisPage() {
           <DialogHeader>
             <DialogTitle>{form.id ? "Edit Jenis Rekomendasi" : "Tambah Jenis Rekomendasi"}</DialogTitle>
           </DialogHeader>
+          <div className="flex gap-1 rounded-full bg-slate-100 p-1 text-sm font-medium">
+            {[
+              ["form", "Formulir & Dokumen"],
+              ["surat", "Template Surat"],
+            ].map(([v, l]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setTab(v as "form" | "surat")}
+                className={`flex-1 rounded-full px-3 py-1.5 transition-colors ${
+                  tab === v ? "bg-white text-brand shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
           <div className="space-y-3.5">
+            {tab === "form" ? (
+              <>
             <div className="grid gap-3.5 sm:grid-cols-2">
               <div>
                 <Label className="mb-1.5 block text-sm">Kode Jenis *</Label>
@@ -445,6 +723,23 @@ export default function AdminJenisPage() {
                 </div>
               )}
             </div>
+              </>
+            ) : (
+              <TabTemplateSurat
+                tpl={tpl}
+                setTpl={setTpl}
+                tplDefault={tplDefault}
+                setTplDefault={setTplDefault}
+                kunciTersedia={kunciTersedia}
+                onPratinjau={() =>
+                  setPratinjau({ open: true, jenisId: form.id, templateSurat: tplDefault ? null : JSON.stringify(tpl) })
+                }
+                onPakaiDefault={() => {
+                  setTpl(parseTemplateSurat(null));
+                  setTplDefault(true);
+                }}
+              />
+            )}
 
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm">
@@ -460,6 +755,8 @@ export default function AdminJenisPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <PratinjauSuratDialog state={pratinjau} onClose={() => setPratinjau({ open: false })} />
     </div>
   );
 }

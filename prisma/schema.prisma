@@ -42,6 +42,7 @@ model JenisRekom {
   bidang          String   @default("Sekretariat") // SDMK | Yankes | Farmalkes | Sekretariat
   persyaratanJson String   @default("{}")
   templateNomor   String   @default("440/{seq}/{kode}/Dinkes-Kukar/{year}")
+  templateSurat   String? // JSON TemplateSurat — null = format surat default
   isActive        Boolean  @default(true)
   urutan          Int      @default(0)
   createdAt       DateTime @default(now())

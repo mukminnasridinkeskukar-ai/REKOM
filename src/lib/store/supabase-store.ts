@@ -49,6 +49,7 @@ interface RowJenis {
   template_nomor: string;
   is_active: boolean;
   urutan: number;
+  template_surat?: string | null;
 }
 
 interface RowProfile {
@@ -97,6 +98,7 @@ function toJenisDTO(j: RowJenis): JenisRekomDTO {
     templateNomor: j.template_nomor,
     isActive: j.is_active,
     urutan: j.urutan,
+    templateSurat: (j as RowJenis).template_surat ?? null,
   };
 }
 
@@ -191,6 +193,7 @@ export class SupabaseStore implements Store {
         template_nomor: data.templateNomor,
         is_active: data.isActive,
         urutan: data.urutan,
+        template_surat: data.templateSurat ?? null,
       })
       .select("*")
       .single();
@@ -211,6 +214,7 @@ export class SupabaseStore implements Store {
     if (data.templateNomor !== undefined) payload.template_nomor = data.templateNomor;
     if (data.isActive !== undefined) payload.is_active = data.isActive;
     if (data.urutan !== undefined) payload.urutan = data.urutan;
+    if (data.templateSurat !== undefined) payload.template_surat = data.templateSurat;
     const { error } = await supabase.from("master_jenis_rekom").update(payload).eq("id", id);
     if (error) throw new Error(error.message);
   }
