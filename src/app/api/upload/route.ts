@@ -3,11 +3,12 @@
 // "dokumen-rekom" (lihat components/file-uploader.tsx), sehingga endpoint ini tidak dipakai.
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { tmpdir } from "os";
 import crypto from "crypto";
 import { getSessionUser } from "@/lib/session";
 
-/** Folder penyimpanan berkas unggahan Mode Demo */
-export const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+/** Folder penyimpanan berkas unggahan Mode Demo (tmpdir agar aman juga di Vercel/read-only FS) */
+export const UPLOAD_DIR = path.join(tmpdir(), "erekom-uploads");
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5MB (selaras validasi sisi klien)
 
