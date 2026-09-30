@@ -37,14 +37,19 @@ export default function PengajuanBaruPage() {
 
   useEffect(() => {
     fetch("/api/jenis")
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : { data: [] }))
       .then((j) => setJenisList(j.data ?? []))
       .catch(() => undefined);
   }, []);
 
+  // Normalisasi hasil parse: fields & dokumen dijamin array agar UI tak pernah crash
   const persyaratan: Persyaratan = useMemo(() => {
     try {
-      return JSON.parse(jenisDipilih?.persyaratanJson ?? "{}") as Persyaratan;
+      const p = JSON.parse(jenisDipilih?.persyaratanJson ?? "{}") as Partial<Persyaratan> | null;
+      return {
+        fields: Array.isArray(p?.fields) ? p.fields : [],
+        dokumen: Array.isArray(p?.dokumen) ? p.dokumen : [],
+      };
     } catch {
       return { fields: [], dokumen: [] };
     }
