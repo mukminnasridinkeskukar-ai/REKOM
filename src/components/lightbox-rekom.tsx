@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ROLE_LABEL, STATUS_META, type AksiTersedia, type MeDTO, type PengajuanDTO } from "@/lib/types";
 import { LABEL_AKSI } from "@/lib/permissions";
+import { isSupabaseConfigured } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
 const AKSI_WARNA: Partial<Record<AksiTersedia, "default" | "destructive" | "outline" | "teal">> = {
@@ -116,6 +117,9 @@ export function LightboxRekom({
   const previewUrl = dokumenAktif ? infoDokumenUrl(dokumenAktif.fileUrl, dokumenAktif.id) : null;
   const isGambar = dokumenAktif?.tipeFile.startsWith("image/");
   const isPdf = dokumenAktif?.tipeFile.includes("pdf") ?? false;
+  // Berkas warisan metode lama (path lokal) — hanya di mode Supabase isinya pasti hilang
+  const berkasWarisanHilang =
+    (dokumenAktif?.fileUrl.startsWith("/api/files/") ?? false) && isSupabaseConfigured();
   const pemilik = p.pemohon?.id === user.id;
 
   const mulaiAksi = (a: AksiTersedia) => {
@@ -334,7 +338,17 @@ export function LightboxRekom({
                             <ExternalLink className="size-3" /> tab baru
                           </a>
                         </div>
-                        {isGambar ? (
+                        {berkasWarisanHilang ? (
+                          <div className="space-y-1.5 p-4 text-center">
+                            <p className="text-xs font-semibold text-orange-600">Berkas tidak tersedia</p>
+                            <p className="text-xs leading-relaxed text-muted-foreground">
+                              Dokumen ini terunggah dengan metode lama sehingga berkasnya tidak tersimpan permanen.
+                              {pemilik
+                                ? " Silakan buka Perbaiki Pengajuan lalu unggah ulang dokumen ini."
+                                : " Mohon hubungi pemohon untuk mengunggah ulang dokumen ini."}
+                            </p>
+                          </div>
+                        ) : isGambar ? (
                           <img src={previewUrl} alt={dokumenAktif.namaDokumen} className="max-h-80 w-full object-contain" />
                         ) : isPdf ? (
                           <iframe src={`${previewUrl}#toolbar=0&view=FitH`} className="h-72 w-full" title={dokumenAktif.namaDokumen} />

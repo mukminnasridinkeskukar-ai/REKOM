@@ -33,5 +33,11 @@ export async function POST(req: Request) {
   await mkdir(UPLOAD_DIR, { recursive: true });
   await writeFile(path.join(UPLOAD_DIR, nama), Buffer.from(await file.arrayBuffer()));
 
-  return Response.json({ data: { fileUrl: `/api/files/${nama}` } });
+  return Response.json({
+    data: {
+      fileUrl: `/api/files/${nama}`,
+      tipeFile: file.type || "application/octet-stream",
+      ukuran: file.size,
+    },
+  });
 }

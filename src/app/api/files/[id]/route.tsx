@@ -7,6 +7,7 @@ import path from "path";
 import { renderToBuffer, Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { getSessionUser } from "@/lib/session";
 import { getStore } from "@/lib/store";
+import { isSupabaseConfigured } from "@/lib/config";
 import { UPLOAD_DIR } from "@/app/api/upload/route";
 
 const styles = StyleSheet.create({
@@ -81,7 +82,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         headers: { "Cache-Control": "private, max-age=3600" },
       });
     } catch {
-      return Response.json({ error: "Berkas tidak ditemukan." }, { status: 404 });
+      return Response.json(
+        {
+          error:
+            "Berkas tidak ditemukan di penyimpanan server. Berkas lama kemungkinan terunggah dengan metode sementara — mohon unggah ulang dokumen ini.",
+        },
+        { status: 404 }
+      );
     }
   }
 
@@ -110,6 +117,29 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     });
   }
 
+  // Berkas lama ber-path lokal (/api/files/...) — di Mode Demo masih dibaca dari
+  // penyimpanan lokal; di produksi berkasnya sudah hilang -> 410 (unggah ulang)
+  if (doc.fileUrl.startsWith("/api/files/")) {
+    const namaLokal = doc.fileUrl.split("/").pop() ?? "";
+    if (!isSupabaseConfigured() && uuidExt.test(namaLokal)) {
+      try {
+        const data = await readFile(path.join(UPLOAD_DIR, namaLokal));
+        return new Response(new Uint8Array(data), {
+          headers: { "Cache-Control": "private, max-age=3600" },
+        });
+      } catch {
+        return Response.json({ error: "Berkas tidak ditemukan di penyimpanan server." }, { status: 404 });
+      }
+    }
+    return Response.json(
+      {
+        error:
+          "Dokumen ini terunggah dengan metode lama sehingga berkasnya tidak tersimpan permanen. Mohon unggah ulang dokumen ini.",
+      },
+      { status: 410 }
+    );
+  }
+
   // supabase storage path -> redirect signed URL (1 jam)
   if (!doc.fileUrl.startsWith("/api/") && !doc.fileUrl.startsWith("http")) {
     const { createServerSupabase } = await import("@/lib/supabase/server");
@@ -122,5 +152,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     }
   }
 
-  return Response.json({ error: "Berkas tidak tersedia." }, { status: 404 });
+  return Response.json(
+    { error: "Berkas tidak tersedia di Storage. Mohon periksa bucket dokumen-rekom atau unggah ulang." },
+    { status: 404 }
+  );
 }

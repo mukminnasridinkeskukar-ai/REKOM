@@ -15,6 +15,8 @@ export interface FileTerpilih {
   tipeFile?: string;
   ukuran?: number;
   id?: string;
+  /** true bila berkas SUDAH diunggah ke Storage Supabase oleh uploader ini */
+  terunggah?: boolean;
 }
 
 /** Kompres gambar di sisi klien agar di bawah 5MB */
@@ -86,6 +88,7 @@ export function FileUploader({
           });
           if (error) throw new Error(error.message);
           record.fileUrl = path;
+          record.terunggah = true; // sudah permanen di Storage — halaman tak perlu unggah ulang
         }
       } else {
         const form = new FormData();

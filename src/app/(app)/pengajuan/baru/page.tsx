@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { JenisIcon } from "@/components/jenis-icon";
 import { DynamicForm } from "@/components/dynamic-form";
 import { FileUploader, type FileTerpilih } from "@/components/file-uploader";
+import { unggahBerkas } from "@/lib/upload-client";
 import type { JenisRekomDTO, Persyaratan } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -98,28 +99,33 @@ export default function PengajuanBaruPage() {
         if (!res.ok) throw new Error("Gagal memperbarui formulir");
       }
 
-      // 2. unggah dokumen yang belum tersimpan
+      // 2. simpan metadata dokumen — unggah bila belum ada di Storage
       for (const b of berkas) {
-        if (b.fileUrl && !b.file) continue; // sudah terunggah
-        if (!b.file) continue;
-        const fd = new FormData();
-        fd.append("file", b.file);
-        const resUp = await fetch("/api/upload", { method: "POST", body: fd });
-        const jsonUp = await resUp.json();
-        if (!resUp.ok) throw new Error(jsonUp.error ?? "Gagal mengunggah dokumen");
+        if (!b.file && !b.terunggah) continue; // tidak ada berkas baru (sudah tersimpan / dokumen lama)
+
+        let muatan: { fileUrl: string; tipeFile: string; ukuran: number };
+        if (b.terunggah && b.fileUrl) {
+          // FileUploader sudah mengunggah ke Storage Supabase — cukup catat metadata
+          muatan = {
+            fileUrl: b.fileUrl,
+            tipeFile: b.tipeFile ?? "application/octet-stream",
+            ukuran: b.ukuran ?? 0,
+          };
+        } else if (b.file) {
+          muatan = await unggahBerkas(b.file, id);
+        } else {
+          continue;
+        }
+
         const resDok = await fetch(`/api/pengajuan/${id}/dokumen`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            namaDokumen: b.namaDokumen,
-            fileUrl: jsonUp.data.fileUrl,
-            tipeFile: jsonUp.data.tipeFile,
-            ukuran: jsonUp.data.ukuran,
-          }),
+          body: JSON.stringify({ namaDokumen: b.namaDokumen, ...muatan }),
         });
         if (!resDok.ok) throw new Error("Gagal menyimpan metadata dokumen");
         b.file = undefined as never;
-        b.fileUrl = jsonUp.data.fileUrl;
+        b.terunggah = false;
+        b.fileUrl = muatan.fileUrl;
       }
 
       // 3. ajukan bila diminta
