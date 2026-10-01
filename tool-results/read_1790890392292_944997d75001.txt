@@ -1,0 +1,582 @@
+     1→-- ============================================================================
+     2→-- E-REKOM — Tata Kelola Rekomendasi Kepala Dinas Kesehatan
+     3→--           Kabupaten Kutai Kartanegara
+     4→-- ============================================================================
+     5→-- Skema lengkap untuk Supabase (Postgres + Auth + Storage + Realtime + RLS).
+     6→-- Cara pakai: Supabase Dashboard > SQL Editor > New query > paste seluruh file > Run.
+     7→-- ============================================================================
+     8→
+     9→create extension if not exists "pgcrypto";
+    10→
+    11→-- ============================================================================
+    12→-- 1. TABEL: PROFILES
+    13→-- ============================================================================
+    14→create table if not exists public.profiles (
+    15→  id            uuid primary key references auth.users (id) on delete cascade,
+    16→  email         text,
+    17→  nama_lengkap  text not null,
+    18→  nik           text,
+    19→  no_hp         text,
+    20→  asal_instansi text,
+    21→  jabatan       text,
+    22→  role          text not null default 'pemohon'
+    23→                check (role in ('pemohon','verifikator_bidang','admin_tu','kabid','kadis','super_admin')),
+    24→  bidang        text check (bidang in ('SDMK','Yankes','Farmalkes','Sekretariat') or bidang is null),
+    25→  foto_url      text,
+    26→  created_at    timestamptz not null default now(),
+    27→  updated_at    timestamptz not null default now()
+    28→);
+    29→
+    30→comment on table public.profiles is 'Profil pengguna; 1:1 dengan auth.users.';
+    31→
+    32→-- ============================================================================
+    33→-- 2. TABEL: MASTER JENIS REKOMENDASI (fleksibel — admin bisa tambah tanpa coding)
+    34→-- ============================================================================
+    35→create table if not exists public.master_jenis_rekom (
+    36→  id               uuid primary key default gen_random_uuid(),
+    37→  kode_jenis       text not null unique,
+    38→  nama_jenis       text not null,
+    39→  deskripsi        text,
+    40→  icon             text not null default 'FileText',
+    41→  warna            text not null default '#0F766E',
+    42→  bidang           text not null default 'Sekretariat'
+    43→                   check (bidang in ('SDMK','Yankes','Farmalkes','Sekretariat')),
+    44→  persyaratan_json jsonb not null default '{"fields":[],"dokumen":[]}',
+    45→  template_nomor   text not null default '440/{seq}/{kode}/Dinkes-Kukar/{year}',
+    46→  template_surat   text,
+    47→  is_active        boolean not null default true,
+    48→  urutan           int not null default 99,
+    49→  created_at       timestamptz not null default now(),
+    50→  updated_at       timestamptz not null default now()
+    51→);
+    52→
+    53→comment on column public.master_jenis_rekom.persyaratan_json is
+    54→  '{"fields":[{"key","label","type":"text|textarea|number|date|select","required",options[]}], "dokumen":[{"nama","required"}]}';
+    55→
+    56→-- ============================================================================
+    57→-- 3. TABEL: PENGAJUAN REKOMENDASI
+    58→-- ============================================================================
+    59→create table if not exists public.pengajuan_rekom (
+    60→  id                  uuid primary key default gen_random_uuid(),
+    61→  pemohon_id          uuid not null references public.profiles (id) on delete cascade,
+    62→  jenis_id            uuid not null references public.master_jenis_rekom (id),
+    63→  judul_pengajuan     text not null,
+    64→  data_form_jsonb     jsonb not null default '{}'::jsonb,
+    65→  status              text not null default 'draft'
+    66→                      check (status in (
+    67→                        'draft','diajukan','diverifikasi_bidang','perlu_perbaikan',
+    68→                        'disetujui_kabid','menunggu_ttd_kadis','terbit','ditolak'
+    69→                      )),
+    70→  catatan_verifikator text,
+    71→  nomor_surat         text unique,
+    72→  tgl_terbit          timestamptz,
+    73→  file_rekom_pdf_url  text,
+    74→  qr_code_id          uuid unique default gen_random_uuid(),
+    75→  created_at          timestamptz not null default now(),
+    76→  updated_at          timestamptz not null default now()
+    77→);
+    78→
+    79→create index if not exists idx_pengajuan_pemohon on public.pengajuan_rekom (pemohon_id);
+    80→create index if not exists idx_pengajuan_jenis on public.pengajuan_rekom (jenis_id);
+    81→create index if not exists idx_pengajuan_status on public.pengajuan_rekom (status);
+    82→create index if not exists idx_pengajuan_qr on public.pengajuan_rekom (qr_code_id);
+    83→
+    84→-- ============================================================================
+    85→-- 4. TABEL: DOKUMEN PENDUKUNG
+    86→-- ============================================================================
+    87→create table if not exists public.dokumen_pendukung (
+    88→  id           uuid primary key default gen_random_uuid(),
+    89→  pengajuan_id uuid not null references public.pengajuan_rekom (id) on delete cascade,
+    90→  nama_dokumen text not null,
+    91→  file_url     text not null,           -- path di bucket Storage "dokumen-rekom"
+    92→  tipe_file    text not null default 'application/octet-stream',
+    93→  ukuran       bigint not null default 0,
+    94→  created_at   timestamptz not null default now()
+    95→);
+    96→
+    97→create index if not exists idx_dokumen_pengajuan on public.dokumen_pendukung (pengajuan_id);
+    98→
+    99→-- ============================================================================
+   100→-- 5. TABEL: TRACKING STATUS
+   101→-- ============================================================================
+   102→create table if not exists public.tracking_status (
+   103→  id           uuid primary key default gen_random_uuid(),
+   104→  pengajuan_id uuid not null references public.pengajuan_rekom (id) on delete cascade,
+   105→  dari_status  text,
+   106→  ke_status    text not null,
+   107→  oleh_user_id uuid references public.profiles (id) on delete set null,
+   108→  catatan      text,
+   109→  created_at   timestamptz not null default now()
+   110→);
+   111→
+   112→create index if not exists idx_tracking_pengajuan on public.tracking_status (pengajuan_id);
+   113→
+   114→-- ============================================================================
+   115→-- 6. TABEL: NOTIFIKASI (realtime)
+   116→-- ============================================================================
+   117→create table if not exists public.notifications (
+   118→  id           uuid primary key default gen_random_uuid(),
+   119→  user_id      uuid not null references public.profiles (id) on delete cascade,
+   120→  pengajuan_id uuid references public.pengajuan_rekom (id) on delete cascade,
+   121→  judul        text not null,
+   122→  pesan        text not null,
+   123→  is_read      boolean not null default false,
+   124→  created_at   timestamptz not null default now()
+   125→);
+   126→
+   127→create index if not exists idx_notif_user on public.notifications (user_id);
+   128→
+   129→-- ============================================================================
+   130→-- 7. TRIGGER: updated_at otomatis
+   131→-- ============================================================================
+   132→create or replace function public.set_updated_at()
+   133→returns trigger
+   134→language plpgsql
+   135→as $$
+   136→begin
+   137→  new.updated_at = now();
+   138→  return new;
+   139→end;
+   140→$$;
+   141→
+   142→drop trigger if exists trg_profiles_updated on public.profiles;
+   143→create trigger trg_profiles_updated before update on public.profiles
+   144→  for each row execute function public.set_updated_at();
+   145→
+   146→drop trigger if exists trg_jenis_updated on public.master_jenis_rekom;
+   147→create trigger trg_jenis_updated before update on public.master_jenis_rekom
+   148→  for each row execute function public.set_updated_at();
+   149→
+   150→drop trigger if exists trg_pengajuan_updated on public.pengajuan_rekom;
+   151→create trigger trg_pengajuan_updated before update on public.pengajuan_rekom
+   152→  for each row execute function public.set_updated_at();
+   153→
+   154→-- ============================================================================
+   155→-- 8. TRIGGER: buat profile otomatis saat user mendaftar (auth.users -> profiles)
+   156→-- ============================================================================
+   157→create or replace function public.handle_new_user()
+   158→returns trigger
+   159→language plpgsql
+   160→security definer
+   161→set search_path = public
+   162→as $$
+   163→begin
+   164→  insert into public.profiles (id, email, nama_lengkap, nik, no_hp, asal_instansi, jabatan, role)
+   165→  values (
+   166→    new.id,
+   167→    new.email,
+   168→    coalesce(new.raw_user_meta_data ->> 'nama_lengkap', split_part(coalesce(new.email, 'Pemohon'), '@', 1)),
+   169→    nullif(new.raw_user_meta_data ->> 'nik', ''),
+   170→    nullif(new.raw_user_meta_data ->> 'no_hp', ''),
+   171→    coalesce(nullif(new.raw_user_meta_data ->> 'asal_instansi', ''), 'Pemohon'),
+   172→    nullif(new.raw_user_meta_data ->> 'jabatan', ''),
+   173→    'pemohon' -- role default; Super Admin dapat mengubahnya dari menu Kelola Pengguna
+   174→  );
+   175→  return new;
+   176→end;
+   177→$$;
+   178→
+   179→drop trigger if exists on_auth_user_created on auth.users;
+   180→create trigger on_auth_user_created
+   181→  after insert on auth.users
+   182→  for each row execute function public.handle_new_user();
+   183→
+   184→-- ============================================================================
+   185→-- 9. FUNGSI BANTU RLS (security definer agar tidak rekursif pada profiles)
+   186→-- ============================================================================
+   187→create or replace function public.my_role()
+   188→returns text
+   189→language sql stable security definer set search_path = public
+   190→as $$
+   191→  select role from public.profiles where id = auth.uid();
+   192→$$;
+   193→
+   194→create or replace function public.my_bidang()
+   195→returns text
+   196→language sql stable security definer set search_path = public
+   197→as $$
+   198→  select bidang from public.profiles where id = auth.uid();
+   199→$$;
+   200→
+   201→-- boleh melihat pengajuan? (pemilik / verifikator bidang / manajemen)
+   202→create or replace function public.can_view_pengajuan(p_pengajuan_id uuid)
+   203→returns boolean
+   204→language sql stable security definer set search_path = public
+   205→as $$
+   206→  select exists (
+   207→    select 1
+   208→    from public.pengajuan_rekom p
+   209→    join public.master_jenis_rekom j on j.id = p.jenis_id
+   210→    where p.id = p_pengajuan_id
+   211→      and (
+   212→        p.pemohon_id = auth.uid()
+   213→        or (public.my_role() = 'verifikator_bidang' and j.bidang = public.my_bidang())
+   214→        or public.my_role() in ('admin_tu','kabid','kadis','super_admin')
+   215→      )
+   216→  );
+   217→$$;
+   218→
+   219→-- ============================================================================
+   220→-- 10. RPC: GENERATE NOMOR SURAT (format: 440/{seq}/{kode}/Dinkes-Kukar/{year})
+   221→-- ============================================================================
+   222→create or replace function public.generate_nomor_surat(p_jenis_id uuid)
+   223→returns text
+   224→language plpgsql
+   225→security definer
+   226→set search_path = public
+   227→as $$
+   228→declare
+   229→  v_kode     text;
+   230→  v_template text;
+   231→  v_seq      int;
+   232→  v_year     int := extract(year from now())::int;
+   233→begin
+   234→  select kode_jenis, template_nomor into v_kode, v_template
+   235→  from public.master_jenis_rekom where id = p_jenis_id;
+   236→  if v_kode is null then
+   237→    raise exception 'Jenis rekomendasi tidak ditemukan';
+   238→  end if;
+   239→
+   240→  select count(*) + 1 into v_seq
+   241→  from public.pengajuan_rekom
+   242→  where jenis_id = p_jenis_id
+   243→    and nomor_surat is not null
+   244→    and extract(year from coalesce(tgl_terbit, created_at))::int = v_year;
+   245→
+   246→  return replace(replace(replace(v_template,
+   247→    '{seq}',  lpad(v_seq::text, 3, '0')),
+   248→    '{kode}', v_kode),
+   249→    '{year}', v_year::text);
+   250→end;
+   251→$$;
+   252→
+   253→-- ============================================================================
+   254→-- 11. RPC: VERIFIKASI PUBLIK VIA QR (tanpa login — hanya data aman)
+   255→-- ============================================================================
+   256→create or replace function public.verify_surat_public(p_qr text)
+   257→returns table (
+   258→  nomor_surat     text,
+   259→  jenis_nama      text,
+   260→  judul_pengajuan text,
+   261→  pemohon_nama    text,
+   262→  asal_instansi   text,
+   263→  tgl_terbit      timestamptz,
+   264→  nama_kadis      text,
+   265→  pengajuan_id    uuid
+   266→)
+   267→language plpgsql
+   268→stable
+   269→security definer
+   270→set search_path = public
+   271→as $$
+   272→begin
+   273→  return query
+   274→  select p.nomor_surat,
+   275→         j.nama_jenis,
+   276→         p.judul_pengajuan,
+   277→         pr.nama_lengkap,
+   278→         pr.asal_instansi,
+   279→         p.tgl_terbit,
+   280→         (select pk.nama_lengkap from public.profiles pk where pk.role = 'kadis' limit 1) as nama_kadis,
+   281→         p.id
+   282→  from public.pengajuan_rekom p
+   283→  join public.master_jenis_rekom j on j.id = p.jenis_id
+   284→  join public.profiles pr on pr.id = p.pemohon_id
+   285→  where p.qr_code_id::text = p_qr
+   286→    and p.status = 'terbit';
+   287→end;
+   288→$$;
+   289→
+   290→-- ============================================================================
+   291→-- 12. ROW LEVEL SECURITY
+   292→-- ============================================================================
+   293→alter table public.profiles           enable row level security;
+   294→alter table public.master_jenis_rekom enable row level security;
+   295→alter table public.pengajuan_rekom    enable row level security;
+   296→alter table public.dokumen_pendukung  enable row level security;
+   297→alter table public.tracking_status    enable row level security;
+   298→alter table public.notifications      enable row level security;
+   299→
+   300→-- ---- profiles ----
+   301→drop policy if exists "profiles: lihat sendiri" on public.profiles;
+   302→create policy "profiles: lihat sendiri" on public.profiles
+   303→  for select to authenticated using (id = auth.uid());
+   304→
+   305→drop policy if exists "profiles: lihat kolega sesama pegawai" on public.profiles;
+   306→create policy "profiles: lihat kolega sesama pegawai" on public.profiles
+   307→  for select to authenticated
+   308→  using (public.my_role() in ('verifikator_bidang','admin_tu','kabid','kadis','super_admin'));
+   309→
+   310→drop policy if exists "profiles: perbarui sendiri" on public.profiles;
+   311→create policy "profiles: perbarui sendiri" on public.profiles
+   312→  for update to authenticated using (id = auth.uid())
+   313→  with check (id = auth.uid() and role = public.my_role());
+   314→
+   315→drop policy if exists "profiles: super_admin kelola" on public.profiles;
+   316→create policy "profiles: super_admin kelola" on public.profiles
+   317→  for update to authenticated
+   318→  using (public.my_role() = 'super_admin')
+   319→  with check (public.my_role() = 'super_admin');
+   320→
+   321→drop policy if exists "profiles: insert sendiri" on public.profiles;
+   322→create policy "profiles: insert sendiri" on public.profiles
+   323→  for insert to authenticated with check (id = auth.uid());
+   324→
+   325→-- ---- master_jenis_rekom ----
+   326→drop policy if exists "jenis: semua terautentikasi boleh baca" on public.master_jenis_rekom;
+   327→create policy "jenis: semua terautentikasi boleh baca" on public.master_jenis_rekom
+   328→  for select to authenticated using (true);
+   329→
+   330→drop policy if exists "jenis: super_admin tulis" on public.master_jenis_rekom;
+   331→create policy "jenis: super_admin tulis" on public.master_jenis_rekom
+   332→  for all to authenticated
+   333→  using (public.my_role() = 'super_admin')
+   334→  with check (public.my_role() = 'super_admin');
+   335→
+   336→-- ---- pengajuan_rekom: SELECT ----
+   337→drop policy if exists "pengajuan: pemohon lihat miliknya" on public.pengajuan_rekom;
+   338→create policy "pengajuan: pemohon lihat miliknya" on public.pengajuan_rekom
+   339→  for select to authenticated using (pemohon_id = auth.uid());
+   340→
+   341→drop policy if exists "pengajuan: verifikator lihat bidangnya" on public.pengajuan_rekom;
+   342→create policy "pengajuan: verifikator lihat bidangnya" on public.pengajuan_rekom
+   343→  for select to authenticated
+   344→  using (
+   345→    public.my_role() = 'verifikator_bidang'
+   346→    and exists (
+   347→      select 1 from public.master_jenis_rekom j
+   348→      where j.id = jenis_id and j.bidang = public.my_bidang()
+   349→    )
+   350→  );
+   351→
+   352→drop policy if exists "pengajuan: manajemen lihat semua" on public.pengajuan_rekom;
+   353→create policy "pengajuan: manajemen lihat semua" on public.pengajuan_rekom
+   354→  for select to authenticated
+   355→  using (public.my_role() in ('admin_tu','kabid','kadis','super_admin'));
+   356→
+   357→-- ---- pengajuan_rekom: INSERT ----
+   358→drop policy if exists "pengajuan: pemohon buat miliknya" on public.pengajuan_rekom;
+   359→create policy "pengajuan: pemohon buat miliknya" on public.pengajuan_rekom
+   360→  for insert to authenticated with check (pemohon_id = auth.uid());
+   361→
+   362→-- ---- pengajuan_rekom: UPDATE ----
+   363→drop policy if exists "pengajuan: pemohon sunting miliknya" on public.pengajuan_rekom;
+   364→create policy "pengajuan: pemohon sunting miliknya" on public.pengajuan_rekom
+   365→  for update to authenticated
+   366→  using (pemohon_id = auth.uid() and status in ('draft','perlu_perbaikan'))
+   367→  with check (pemohon_id = auth.uid());
+   368→
+   369→drop policy if exists "pengajuan: verifikator proses bidangnya" on public.pengajuan_rekom;
+   370→create policy "pengajuan: verifikator proses bidangnya" on public.pengajuan_rekom
+   371→  for update to authenticated
+   372→  using (
+   373→    public.my_role() = 'verifikator_bidang'
+   374→    and exists (
+   375→      select 1 from public.master_jenis_rekom j
+   376→      where j.id = jenis_id and j.bidang = public.my_bidang()
+   377→    )
+   378→  )
+   379→  with check (true);
+   380→
+   381→drop policy if exists "pengajuan: kabid menyetujui" on public.pengajuan_rekom;
+   382→create policy "pengajuan: kabid menyetujui" on public.pengajuan_rekom
+   383→  for update to authenticated
+   384→  using (public.my_role() = 'kabid') with check (true);
+   385→
+   386→drop policy if exists "pengajuan: admin_tu penomoran" on public.pengajuan_rekom;
+   387→create policy "pengajuan: admin_tu penomoran" on public.pengajuan_rekom
+   388→  for update to authenticated
+   389→  using (public.my_role() = 'admin_tu') with check (true);
+   390→
+   391→drop policy if exists "pengajuan: kadis pengesahan" on public.pengajuan_rekom;
+   392→create policy "pengajuan: kadis pengesahan" on public.pengajuan_rekom
+   393→  for update to authenticated
+   394→  using (public.my_role() = 'kadis') with check (true);
+   395→
+   396→drop policy if exists "pengajuan: super_admin penuh" on public.pengajuan_rekom;
+   397→create policy "pengajuan: super_admin penuh" on public.pengajuan_rekom
+   398→  for update to authenticated
+   399→  using (public.my_role() = 'super_admin') with check (true);
+   400→
+   401→-- ---- dokumen_pendukung (mengikuti akses pengajuan induknya) ----
+   402→drop policy if exists "dokumen: lihat sesuai pengajuan" on public.dokumen_pendukung;
+   403→create policy "dokumen: lihat sesuai pengajuan" on public.dokumen_pendukung
+   404→  for select to authenticated
+   405→  using (public.can_view_pengajuan(pengajuan_id));
+   406→
+   407→drop policy if exists "dokumen: pemohon unggah ke miliknya" on public.dokumen_pendukung;
+   408→create policy "dokumen: pemohon unggah ke miliknya" on public.dokumen_pendukung
+   409→  for insert to authenticated
+   410→  with check (
+   411→    exists (
+   412→      select 1 from public.pengajuan_rekom p
+   413→      where p.id = pengajuan_id and p.pemohon_id = auth.uid()
+   414→    )
+   415→  );
+   416→
+   417→drop policy if exists "dokumen: pemohon hapus miliknya" on public.dokumen_pendukung;
+   418→create policy "dokumen: pemohon hapus miliknya" on public.dokumen_pendukung
+   419→  for delete to authenticated
+   420→  using (
+   421→    exists (
+   422→      select 1 from public.pengajuan_rekom p
+   423→      where p.id = pengajuan_id and p.pemohon_id = auth.uid()
+   424→    )
+   425→  );
+   426→
+   427→-- ---- tracking_status ----
+   428→drop policy if exists "tracking: lihat sesuai pengajuan" on public.tracking_status;
+   429→create policy "tracking: lihat sesuai pengajuan" on public.tracking_status
+   430→  for select to authenticated
+   431→  using (public.can_view_pengajuan(pengajuan_id));
+   432→
+   433→drop policy if exists "tracking: aktor mencatat sebagai dirinya" on public.tracking_status;
+   434→create policy "tracking: aktor mencatat sebagai dirinya" on public.tracking_status
+   435→  for insert to authenticated
+   436→  with check (oleh_user_id = auth.uid());
+   437→
+   438→-- ---- notifications ----
+   439→drop policy if exists "notif: lihat miliknya" on public.notifications;
+   440→create policy "notif: lihat miliknya" on public.notifications
+   441→  for select to authenticated using (user_id = auth.uid());
+   442→
+   443→drop policy if exists "notif: tandai dibaca miliknya" on public.notifications;
+   444→create policy "notif: tandai dibaca miliknya" on public.notifications
+   445→  for update to authenticated
+   446→  using (user_id = auth.uid()) with check (user_id = auth.uid());
+   447→
+   448→drop policy if exists "notif: sistem/kiriman lintas pengguna" on public.notifications;
+   449→create policy "notif: sistem/kiriman lintas pengguna" on public.notifications
+   450→  for insert to authenticated with check (true);
+   451→
+   452→-- ============================================================================
+   453→-- 13. REALTIME
+   454→-- ============================================================================
+   455→do $$
+   456→begin
+   457→  begin
+   458→    alter publication supabase_realtime add table public.notifications;
+   459→  exception when duplicate_object then null;
+   460→  when others then null;
+   461→  end;
+   462→  begin
+   463→    alter publication supabase_realtime add table public.pengajuan_rekom;
+   464→  exception when duplicate_object then null;
+   465→  when others then null;
+   466→  end;
+   467→  begin
+   468→    alter publication supabase_realtime add table public.tracking_status;
+   469→  exception when duplicate_object then null;
+   470→  when others then null;
+   471→  end;
+   472→end $$;
+   473→
+   474→-- ============================================================================
+   475→-- 14. STORAGE: bucket + policy
+   476→-- ============================================================================
+   477→insert into storage.buckets (id, name, public)
+   478→values ('dokumen-rekom', 'dokumen-rekom', false)
+   479→on conflict (id) do nothing;
+   480→
+   481→insert into storage.buckets (id, name, public)
+   482→values ('rekom-terbit', 'rekom-terbit', true)
+   483→on conflict (id) do nothing;
+   484→
+   485→-- dokumen-rekom (privat): unggah & baca oleh user terautentikasi
+   486→drop policy if exists "storage: authenticated unggah dokumen" on storage.objects;
+   487→create policy "storage: authenticated unggah dokumen" on storage.objects
+   488→  for insert to authenticated
+   489→  with check (bucket_id = 'dokumen-rekom');
+   490→
+   491→drop policy if exists "storage: authenticated baca dokumen" on storage.objects;
+   492→create policy "storage: authenticated baca dokumen" on storage.objects
+   493→  for select to authenticated
+   494→  using (bucket_id = 'dokumen-rekom');
+   495→
+   496→drop policy if exists "storage: authenticated hapus dokumen" on storage.objects;
+   497→create policy "storage: authenticated hapus dokumen" on storage.objects
+   498→  for delete to authenticated
+   499→  using (bucket_id = 'dokumen-rekom');
+   500→
+   501→-- rekom-terbit (publik): siapa pun boleh mengunduh surat yang sudah terbit
+   502→drop policy if exists "storage: publik baca rekom terbit" on storage.objects;
+   503→create policy "storage: publik baca rekom terbit" on storage.objects
+   504→  for select to public
+   505→  using (bucket_id = 'rekom-terbit');
+   506→
+   507→drop policy if exists "storage: authenticated unggah rekom terbit" on storage.objects;
+   508→create policy "storage: authenticated unggah rekom terbit" on storage.objects
+   509→  for insert to authenticated
+   510→  with check (bucket_id = 'rekom-terbit');
+   511→
+   512→-- ============================================================================
+   513→-- 15. SEED: 8 JENIS REKOMENDASI AWAL
+   514→-- ============================================================================
+   515→insert into public.master_jenis_rekom (kode_jenis, nama_jenis, deskripsi, icon, warna, bidang, persyaratan_json, template_nomor, urutan)
+   516→values
+   517→(
+   518→  'SIP-DMK', 'Rekomendasi SIP Dokter / Perawat / Bidan',
+   519→  'Surat rekomendasi pengajuan Surat Izin Praktik (SIP) tenaga kesehatan di wilayah Kabupaten Kutai Kartanegara.',
+   520→  'Stethoscope', '#1E3A8A', 'SDMK',
+   521→  '{"fields":[{"key":"nama_tenaga_kesehatan","label":"Nama Tenaga Kesehatan","type":"text","required":true},{"key":"profesi","label":"Profesi","type":"select","required":true,"options":["Dokter Umum","Dokter Spesialis","Perawat","Bidan","Ahli Gizi","Apoteker"]},{"key":"no_str","label":"Nomor STR","type":"text","required":true},{"key":"masa_berlaku_str","label":"Masa Berlaku STR","type":"date","required":true},{"key":"tempat_praktik","label":"Tempat Praktik (Fasilitas)","type":"text","required":true},{"key":"alamat_praktik","label":"Alamat Praktik","type":"textarea","required":true}],"dokumen":[{"nama":"Scan KTP","required":true},{"nama":"Scan STR aktif","required":true},{"nama":"Scan Ijazah & SIPP","required":true},{"nama":"Surat rekomendasi organisasi profesi","required":false}]}',
+   522→  '440/{seq}/SDMK/Dinkes-Kukar/{year}', 1
+   523→),
+   524→(
+   525→  'IZIN-KLNK', 'Rekomendasi Izin Klinik Pratama / Utama',
+   526→  'Rekomendasi pendirian dan pengoperasian klinik pratama maupun klinik utama di Kabupaten Kutai Kartanegara.',
+   527→  'Hospital', '#0F766E', 'Yankes',
+   528→  '{"fields":[{"key":"nama_klinik","label":"Nama Klinik","type":"text","required":true},{"key":"kelas_klinik","label":"Kelas Klinik","type":"select","required":true,"options":["Pratama","Utama"]},{"key":"alamat_klinik","label":"Alamat Klinik","type":"textarea","required":true},{"key":"penanggung_jawab","label":"Penanggung Jawab Klinik (Dokter)","type":"text","required":true},{"key":"no_str_pj","label":"Nomor STR Penanggung Jawab","type":"text","required":true},{"key":"kapasitas_ranjang","label":"Kapasitas Tempat Tidur","type":"number","required":false}],"dokumen":[{"nama":"Scan KTP penanggung jawab","required":true},{"nama":"Scan STR & SIP dokter PJ","required":true},{"nama":"Denah bangunan klinik","required":true},{"nama":"Akta pendirian badan usaha","required":false}]}',
+   529→  '440/{seq}/YK/Dinkes-Kukar/{year}', 2
+   530→),
+   531→(
+   532→  'IZIN-APT', 'Rekomendasi Izin Apotek / Toko Obat',
+   533→  'Rekomendasi perizinan apotek, toko obat, dan depot obat oleh Dinas Kesehatan sebelum izin dari DPMPTSP.',
+   534→  'Pill', '#7C3AED', 'Farmalkes',
+   535→  '{"fields":[{"key":"nama_usaha","label":"Nama Apotek / Toko Obat","type":"text","required":true},{"key":"jenis_usaha","label":"Jenis Usaha","type":"select","required":true,"options":["Apotek","Toko Obat","Depot Obat"]},{"key":"alamat_usaha","label":"Alamat Usaha","type":"textarea","required":true},{"key":"apoteker_pengelola","label":"Nama Apoteker Pengelola","type":"text","required":true},{"key":"no_sipa","label":"Nomor SIPA Apoteker","type":"text","required":false}],"dokumen":[{"nama":"Scan KTP pemohon","required":true},{"nama":"Scan Ijazah & SIPA apoteker","required":true},{"nama":"Foto tampak depan tempat usaha","required":true}]}',
+   536→  '440/{seq}/FAR/Dinkes-Kukar/{year}', 3
+   537→),
+   538→(
+   539→  'SIP-PM', 'Rekomendasi Izin Praktik Mandiri',
+   540→  'Surat rekomendasi praktik mandiri tenaga kesehatan (perawat / bidan mandiri) di wilayah kerja Dinkes Kukar.',
+   541→  'Home', '#DB2777', 'SDMK',
+   542→  '{"fields":[{"key":"nama_pemohon","label":"Nama Pemohon","type":"text","required":true},{"key":"profesi","label":"Profesi","type":"select","required":true,"options":["Perawat","Bidan"]},{"key":"no_str","label":"Nomor STR","type":"text","required":true},{"key":"alamat_praktik","label":"Alamat Praktik Mandiri","type":"textarea","required":true}],"dokumen":[{"nama":"Scan KTP","required":true},{"nama":"Scan STR","required":true},{"nama":"Scan sertifikat manajemen usaha (bagi bidan)","required":false}]}',
+   543→  '440/{seq}/SDMK/Dinkes-Kukar/{year}', 4
+   544→),
+   545→(
+   546→  'PLATARAN', 'Fasilitasi Pelatihan / SKP Plataran Sehat',
+   547→  'Rekomendasi fasilitasi kegiatan pelatihan dan pencapaian SKP melalui program Plataran Sehat bagi pegawai dan tenaga kesehatan.',
+   548→  'GraduationCap', '#D97706', 'SDMK',
+   549→  '{"fields":[{"key":"nama_pegawai","label":"Nama Pegawai","type":"text","required":true},{"key":"nip","label":"NIP","type":"text","required":false},{"key":"pangkat_golongan","label":"Pangkat / Golongan","type":"text","required":false},{"key":"unit_kerja","label":"Unit Kerja","type":"text","required":true},{"key":"nama_pelatihan","label":"Nama Pelatihan / Kegiatan","type":"text","required":true},{"key":"penyelenggara","label":"Penyelenggara","type":"text","required":false},{"key":"tgl_pelaksanaan","label":"Tanggal Pelaksanaan","type":"date","required":true}],"dokumen":[{"nama":"Surat permohonan pemohon","required":true},{"nama":"Scan SK pengangkatan","required":false},{"nama":"Bukti registrasi pelatihan","required":true}]}',
+   550→  '440/{seq}/SDMK/Dinkes-Kukar/{year}', 5
+   551→),
+   552→(
+   553→  'STUDI-LANJUT', 'Rekomendasi Studi Lanjut / Tugas Belajar',
+   554→  'Rekomendasi pengajuan studi lanjut, tugas belajar, dan izin belajar bagi pegawai Dinas Kesehatan Kukar.',
+   555→  'BookOpen', '#0284C7', 'Sekretariat',
+   556→  '{"fields":[{"key":"nama_pegawai","label":"Nama Pegawai","type":"text","required":true},{"key":"nip","label":"NIP","type":"text","required":true},{"key":"jabatan","label":"Jabatan Sekarang","type":"text","required":true},{"key":"jenjang_studi","label":"Jenjang Studi","type":"select","required":true,"options":["S2","S3","Profesi","Lainnya"]},{"key":"perguruan_tinggi","label":"Perguruan Tinggi Tujuan","type":"text","required":true},{"key":"prodi","label":"Program Studi","type":"text","required":true}],"dokumen":[{"nama":"Surat permohonan pribadi","required":true},{"nama":"Scan SK CPNS / PNS terakhir","required":true},{"nama":"Surat penerimaan (LoA) perguruan tinggi","required":true}]}',
+   557→  '440/{seq}/SET/Dinkes-Kukar/{year}', 6
+   558→),
+   559→(
+   560→  'PINDAH-TUGAS', 'Rekomendasi Pindah Tugas',
+   561→  'Rekomendasi pengajuan pindah tugas (rotasi / mutasi) pegawai di lingkungan Dinas Kesehatan Kutai Kartanegara.',
+   562→  'ArrowLeftRight', '#4F46E5', 'Sekretariat',
+   563→  '{"fields":[{"key":"nama_pegawai","label":"Nama Pegawai","type":"text","required":true},{"key":"nip","label":"NIP","type":"text","required":true},{"key":"unit_kerja_asal","label":"Unit Kerja Asal","type":"text","required":true},{"key":"unit_kerja_tujuan","label":"Unit Kerja Tujuan","type":"text","required":true},{"key":"alasan","label":"Alasan Pindah Tugas","type":"textarea","required":true}],"dokumen":[{"nama":"Surat permohonan pribadi","required":true},{"nama":"Scan SK pengangkatan terakhir","required":true},{"nama":"Scan SKP 1 tahun terakhir","required":false}]}',
+   564→  '440/{seq}/SET/Dinkes-Kukar/{year}', 7
+   565→),
+   566→(
+   567→  'LAIN-LAIN', 'Rekomendasi Lain-lain (Custom)',
+   568→  'Jenis rekomendasi fleksibel untuk kebutuhan surat rekomendasi lain yang belum terdaftar. Form dapat disesuaikan Super Admin.',
+   569→  'ClipboardList', '#475569', 'Sekretariat',
+   570→  '{"fields":[{"key":"keperluan","label":"Keperluan Rekomendasi","type":"textarea","required":true},{"key":"instansi_tujuan","label":"Instansi Tujuan","type":"text","required":false}],"dokumen":[{"nama":"Surat permohonan pemohon","required":true}]}',
+   571→  '440/{seq}/SET/Dinkes-Kukar/{year}', 8
+   572→)
+   573→on conflict (kode_jenis) do nothing;
+   574→
+   575→-- ============================================================================
+   576→-- SELESAI. Catatan:
+   577→-- 1. Buat user pertama lewat Authentication > Users > Add user, lalu ubah
+   578→--    kolom role di tabel profiles menjadi 'super_admin' (via SQL editor).
+   579→-- 2. Role lain (verifikator/admin_tu/kabid/kadis) diatur Super Admin dari
+   580→--    halaman "Kelola Pengguna" di aplikasi.
+   581→-- ============================================================================
+   582→
