@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Activity, Loader2, UserRoundPlus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Activity, CircleAlert, Loader2, UserRoundPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,12 +21,62 @@ export default function DaftarPage() {
     jabatan: "",
   });
   const [busy, setBusy] = useState(false);
+  const [nikCek, setNikCek] = useState<{
+    status: "idle" | "cek" | "bebas" | "terdaftar";
+    nama?: string | null;
+    email?: string | null;
+  }>({ status: "idle" });
+  const timerNik = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
+  const setNik = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 16);
+    setForm((p) => ({ ...p, nik: digits }));
+  };
+
+  const setNoHp = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 15);
+    setForm((p) => ({ ...p, noHp: digits }));
+  };
+
+  // Cek otomatis saat NIK lengkap 16 digit — notifikasi dini bila sudah terdaftar
+  useEffect(() => {
+    if (timerNik.current) clearTimeout(timerNik.current);
+    if (form.nik.length !== 16) {
+      setNikCek({ status: "idle" });
+      return;
+    }
+    setNikCek({ status: "cek" });
+    timerNik.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/auth/cek-nik?nik=${form.nik}`);
+        const json = await res.json();
+        if (json.terdaftar) {
+          setNikCek({ status: "terdaftar", nama: json.namaLengkap, email: json.emailMasked });
+        } else {
+          setNikCek({ status: "bebas" });
+        }
+      } catch {
+        setNikCek({ status: "idle" });
+      }
+    }, 400);
+    return () => {
+      if (timerNik.current) clearTimeout(timerNik.current);
+    };
+  }, [form.nik]);
+
   const daftar = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.nik.length !== 16) {
+      toast.error("NIK wajib diisi 16 digit angka sesuai KTP.");
+      return;
+    }
+    if (nikCek.status === "terdaftar") {
+      toast.error("NIK sudah terdaftar — setiap pemohon hanya boleh memiliki 1 akun.");
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch("/api/auth/register", {
@@ -35,7 +85,12 @@ export default function DaftarPage() {
         body: JSON.stringify(form),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Pendaftaran gagal");
+      if (!res.ok) {
+        if (json.code === "NIK_TERDAFTAR") {
+          setNikCek({ status: "terdaftar" });
+        }
+        throw new Error(json.error ?? "Pendaftaran gagal");
+      }
       if (json.needsConfirm) {
         toast.success("Pendaftaran berhasil. Silakan cek email untuk konfirmasi akun.");
         router.push("/login");
@@ -50,6 +105,8 @@ export default function DaftarPage() {
       setBusy(false);
     }
   };
+
+  const nikTerblokir = nikCek.status === "terdaftar";
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-brand-950 via-brand to-teal-brand">
@@ -82,14 +139,60 @@ export default function DaftarPage() {
             </div>
             <div className="grid gap-3.5 sm:grid-cols-2">
               <div>
-                <Label htmlFor="nik" className="mb-1.5 block text-sm">NIK</Label>
-                <Input id="nik" value={form.nik} onChange={set("nik")} placeholder="16 digit" />
+                <Label htmlFor="nik" className="mb-1.5 block text-sm">NIK *</Label>
+                <Input
+                  id="nik"
+                  required
+                  inputMode="numeric"
+                  maxLength={16}
+                  value={form.nik}
+                  onChange={setNik}
+                  placeholder="16 digit sesuai KTP"
+                  className={nikTerblokir ? "border-red-400 focus-visible:ring-red-300" : undefined}
+                  aria-invalid={nikTerblokir}
+                />
+                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                  Identitas unik pemohon — 1 NIK hanya untuk 1 akun.
+                </p>
               </div>
               <div>
-                <Label htmlFor="noHp" className="mb-1.5 block text-sm">No. HP</Label>
-                <Input id="noHp" value={form.noHp} onChange={set("noHp")} placeholder="08xx" />
+                <Label htmlFor="noHp" className="mb-1.5 block text-sm">No. HP *</Label>
+                <Input
+                  id="noHp"
+                  required
+                  inputMode="numeric"
+                  maxLength={15}
+                  value={form.noHp}
+                  onChange={setNoHp}
+                  placeholder="08xxxxxxxxxx"
+                />
+                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                  Dipakai untuk memulihkan akun bila lupa kata sandi.
+                </p>
               </div>
             </div>
+
+            {nikCek.status === "terdaftar" && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3.5">
+                <CircleAlert className="mt-0.5 size-4 shrink-0 text-red-600" />
+                <div className="text-xs leading-relaxed text-red-800">
+                  <p className="font-semibold">NIK sudah terdaftar{nikCek.nama ? ` atas nama ${nikCek.nama}` : ""}{nikCek.email ? ` (email ${nikCek.email})` : ""}.</p>
+                  <p className="mt-0.5">
+                    Setiap pemohon hanya boleh memiliki 1 akun.{" "}
+                    <Link href="/login" className="font-semibold underline">Masuk ke akun Anda</Link>
+                    {" "}atau{" "}
+                    <Link href="/lupa-akun" className="font-semibold underline">lupa akun?</Link>{" "}
+                    bila tidak dapat akses.
+                  </p>
+                </div>
+              </div>
+            )}
+            {nikCek.status === "bebas" && (
+              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-medium text-emerald-700">
+                NIK tersedia — dapat dipakai mendaftar.
+              </p>
+            )}
+
             <div className="grid gap-3.5 sm:grid-cols-2">
               <div>
                 <Label htmlFor="asalInstansi" className="mb-1.5 block text-sm">Asal Instansi</Label>
@@ -100,7 +203,7 @@ export default function DaftarPage() {
                 <Input id="jabatan" value={form.jabatan} onChange={set("jabatan")} placeholder="Perawat / Dokter / dll" />
               </div>
             </div>
-            <Button type="submit" disabled={busy} className="w-full bg-brand">
+            <Button type="submit" disabled={busy || nikTerblokir} className="w-full bg-brand">
               {busy ? <Loader2 className="size-4 animate-spin" /> : <UserRoundPlus className="size-4" />} Daftar
             </Button>
           </form>

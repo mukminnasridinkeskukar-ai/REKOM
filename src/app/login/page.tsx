@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Activity, Loader2, LogIn, ShieldCheck, Zap } from "lucide-react";
+import { Activity, KeyRound, Loader2, LogIn, ShieldCheck, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,6 +125,15 @@ export default function LoginPage() {
                 {busy ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />} Masuk
               </Button>
             </form>
+
+            <p className="mt-3 text-center">
+              <Link
+                href="/lupa-akun"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-brand hover:underline"
+              >
+                <KeyRound className="size-3.5" /> Lupa akun / tidak bisa masuk?
+              </Link>
+            </p>
 
             {!isSupabaseConfigured() && (
               <div className="mt-6 rounded-xl border border-gold/40 bg-gold-light/50 p-3.5">

@@ -193,11 +193,29 @@ export default function ProfilPage() {
           </div>
           <div>
             <Label className="mb-1.5 block text-sm">NIK</Label>
-            <Input value={form.nik} onChange={(e) => setForm({ ...form, nik: e.target.value })} />
+            <Input
+              value={form.nik}
+              inputMode="numeric"
+              maxLength={16}
+              onChange={(e) => setForm({ ...form, nik: e.target.value.replace(/\D/g, "").slice(0, 16) })}
+              placeholder="16 digit sesuai KTP"
+            />
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              Identitas unik — 1 NIK hanya untuk 1 akun & dipakai untuk lupa akun.
+            </p>
           </div>
           <div>
             <Label className="mb-1.5 block text-sm">No. HP</Label>
-            <Input value={form.noHp} onChange={(e) => setForm({ ...form, noHp: e.target.value })} />
+            <Input
+              value={form.noHp}
+              inputMode="numeric"
+              maxLength={15}
+              onChange={(e) => setForm({ ...form, noHp: e.target.value.replace(/\D/g, "").slice(0, 15) })}
+              placeholder="08xxxxxxxxxx"
+            />
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              Dipakai untuk memulihkan akun bila lupa kata sandi.
+            </p>
           </div>
           <div>
             <Label className="mb-1.5 block text-sm">Asal Instansi</Label>
