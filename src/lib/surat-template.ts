@@ -5,17 +5,25 @@
 
 export interface BarisIdentitasTpl {
   label: string;
-  kunci: string; // nama placeholder tanpa kurung kurawal
+  kunci: string; // nama placeholder tanpa kurung kurawal — dipakai bila nilai kosong
+  nilai?: string; // nilai literal (boleh berisi placeholder {kunci}) — mengesampingkan kunci bila terisi
 }
 
 export interface TemplateSurat {
   judul: string; // judul surat, dicetak tengah + kapital
   lampiran: string; // baris "Lampiran : ..." — kosongkan bila tidak perlu
-  pembuka: string; // paragraf pembuka sebelum tabel identitas
-  barisIdentitas: BarisIdentitasTpl[]; // baris "Label : nilai" (placeholder didukung)
-  penutup: string[]; // paragraf-paragraf setelah tabel identitas
+  pembuka: string; // paragraf pembuka sebelum tabel identitas blok 1
+  barisIdentitas: BarisIdentitasTpl[]; // blok 1: baris "Label : nilai" (placeholder didukung)
+  penutup: string[]; // paragraf-paragraf setelah tabel identitas (baris "1. teks" otomatis rata gantung)
   jabatanTtd: string; // blok jabatan di atas tanda tangan (boleh multi-baris)
   kotaTtd: string; // "Tenggarong" — dicetak sebelum tanggal
+  // ===== V2 (opsional — bila tidak diisi, perilaku klasik dipakai) =====
+  letakNomor?: "atas" | "bawah"; // "atas" (default) = nomor dulu lalu judul; "bawah" = judul dulu, nomor tengah di bawahnya (gaya pernyataan)
+  pembukaKedua?: string; // paragraf sebelum blok identitas kedua (mis. "Menyatakan dengan sesungguhnya …")
+  barisIdentitasKedua?: BarisIdentitasTpl[]; // blok 2 (mis. identitas pemohon pada surat pernyataan)
+  penempatanTtd?: string[]; // baris pengganti "Kota, tanggal" di blok TTD (mis. ["Ditetapkan di: Tenggarong", "Pada tanggal: {tgl_terbit}"])
+  gayaTtd?: "klasik" | "elektronik"; // "klasik" (default) = jabatan+nama+NIP; "elektronik" = kotak "Ditandatangani Secara Elektronik Oleh" + QR di samping + footer BSrE
+  pangkatTtd?: string; // baris pangkat di bawah nama pada gaya elektronik
 }
 
 /** Placeholder tetap yang selalu tersedia (di luar kolom formulir) */
@@ -67,31 +75,46 @@ export function parseTemplateSurat(json: string | null | undefined): TemplateSur
           : TEMPLATE_SURAT_DEFAULT.pembuka,
       barisIdentitas: Array.isArray(p.barisIdentitas)
         ? p.barisIdentitas
-            .filter((b) => b && typeof b.label === "string" && typeof b.kunci === "string")
-            .map((b) => ({ label: b.label, kunci: b.kunci }))
+            .filter((b) => b && typeof b.label === "string" && typeof (b.kunci ?? b.nilai) === "string")
+            .map((b) => ({ label: b.label, kunci: b.kunci ?? "", nilai: b.nilai }))
         : [...TEMPLATE_SURAT_DEFAULT.barisIdentitas],
       penutup: Array.isArray(p.penutup)
         ? p.penutup.filter((s) => typeof s === "string" && s.trim())
         : [...TEMPLATE_SURAT_DEFAULT.penutup],
       jabatanTtd: typeof p.jabatanTtd === "string" && p.jabatanTtd.trim() ? p.jabatanTtd : TEMPLATE_SURAT_DEFAULT.jabatanTtd,
       kotaTtd: typeof p.kotaTtd === "string" && p.kotaTtd.trim() ? p.kotaTtd : TEMPLATE_SURAT_DEFAULT.kotaTtd,
+      letakNomor: p.letakNomor === "bawah" ? "bawah" : "atas",
+      pembukaKedua: typeof p.pembukaKedua === "string" ? p.pembukaKedua : "",
+      barisIdentitasKedua: Array.isArray(p.barisIdentitasKedua)
+        ? p.barisIdentitasKedua
+            .filter((b) => b && typeof b.label === "string" && typeof (b.kunci ?? b.nilai) === "string")
+            .map((b) => ({ label: b.label, kunci: b.kunci ?? "", nilai: b.nilai }))
+        : [],
+      penempatanTtd: Array.isArray(p.penempatanTtd)
+        ? p.penempatanTtd.filter((s) => typeof s === "string" && s.trim())
+        : [],
+      gayaTtd: p.gayaTtd === "elektronik" ? "elektronik" : "klasik",
+      pangkatTtd: typeof p.pangkatTtd === "string" ? p.pangkatTtd : "",
     };
   } catch {
     return { ...TEMPLATE_SURAT_DEFAULT, barisIdentitas: [...TEMPLATE_SURAT_DEFAULT.barisIdentitas], penutup: [...TEMPLATE_SURAT_DEFAULT.penutup] };
   }
 }
 
-/** Ganti semua {kunci} pada teks; kunci tak dikenal jadi string kosong */
+/** Ganti semua {kunci} pada teks; kunci tak dikenal jadi string kosong. Slash pada kunci kolom formulir didukung (mis. {asal_kampus/pt}). */
 export function isiPlaceholder(teks: string, data: Record<string, string>): string {
-  return teks.replace(/\{([a-zA-Z0-9_]+)\}/g, (_m, k: string) => data[k] ?? "");
+  return teks.replace(/\{([a-zA-Z0-9_/]+)\}/g, (_m, k: string) => data[k] ?? "");
 }
 
-/** Ganti placeholder pada baris identitas; kunci tak dikenal jadi "-" */
+/** Ganti placeholder pada baris identitas; nilai literal (bila terisi) mengesampingkan kunci; kunci tak dikenal jadi "-" */
 export function isiBarisIdentitas(
   baris: BarisIdentitasTpl[],
   data: Record<string, string>
 ): [string, string][] {
-  return baris.map(({ label, kunci }) => [label, data[kunci] || "-"]);
+  return baris.map(({ label, kunci, nilai }) => [
+    label,
+    nilai && nilai.trim() ? isiPlaceholder(nilai, data) : data[kunci] || "-",
+  ]);
 }
 
 /** Isi surat final siap dirender ke PDF (semua placeholder sudah diganti) */
@@ -103,18 +126,38 @@ export interface SuratIsiHasil {
   penutup: string[];
   jabatanTtd: string;
   kotaTtd: string;
+  letakNomor: "atas" | "bawah";
+  pembukaKedua: string | null; // null/ kosong = blok identitas kedua tidak dicetak
+  barisIdentitasKedua: [string, string][] | null;
+  penempatanTtd: string[] | null; // bila terisi, mengganti baris "Kota, tanggal"
+  gayaTtd: "klasik" | "elektronik";
+  pangkatTtd: string;
 }
 
 /** Terjemahkan template + data menjadi isi surat final */
 export function renderSuratIsi(tpl: TemplateSurat, data: Record<string, string>): SuratIsiHasil {
+  // konteks substitusi tambahan: nilai template sendiri ikut tersedia sebagai placeholder
+  const konteks: Record<string, string> = {
+    ...data,
+    kota_ttd: tpl.kotaTtd || "",
+    pangkat_ttd: tpl.pangkatTtd || "",
+  };
+  const blokDua = (tpl.barisIdentitasKedua ?? []).filter((b) => b.label.trim() || (b.nilai ?? "").trim() || b.kunci);
+  const adaBlokDua = Boolean(tpl.pembukaKedua?.trim()) || blokDua.length > 0;
   return {
-    judul: isiPlaceholder(tpl.judul, data),
-    lampiran: tpl.lampiran?.trim() ? isiPlaceholder(tpl.lampiran, data) : null,
-    pembuka: isiPlaceholder(tpl.pembuka, data),
-    barisIdentitas: isiBarisIdentitas(tpl.barisIdentitas, data),
-    penutup: tpl.penutup.map((p) => isiPlaceholder(p, data)),
-    jabatanTtd: isiPlaceholder(tpl.jabatanTtd, data),
-    kotaTtd: isiPlaceholder(tpl.kotaTtd, data),
+    judul: isiPlaceholder(tpl.judul, konteks),
+    lampiran: tpl.lampiran?.trim() ? isiPlaceholder(tpl.lampiran, konteks) : null,
+    pembuka: isiPlaceholder(tpl.pembuka, konteks),
+    barisIdentitas: isiBarisIdentitas(tpl.barisIdentitas, konteks),
+    penutup: tpl.penutup.map((p) => isiPlaceholder(p, konteks)),
+    jabatanTtd: isiPlaceholder(tpl.jabatanTtd, konteks),
+    kotaTtd: isiPlaceholder(tpl.kotaTtd, konteks),
+    letakNomor: tpl.letakNomor === "bawah" ? "bawah" : "atas",
+    pembukaKedua: adaBlokDua && tpl.pembukaKedua?.trim() ? isiPlaceholder(tpl.pembukaKedua, konteks) : null,
+    barisIdentitasKedua: adaBlokDua ? isiBarisIdentitas(blokDua, konteks) : null,
+    penempatanTtd: tpl.penempatanTtd?.length ? tpl.penempatanTtd.map((s) => isiPlaceholder(s, konteks)) : null,
+    gayaTtd: tpl.gayaTtd === "elektronik" ? "elektronik" : "klasik",
+    pangkatTtd: isiPlaceholder(tpl.pangkatTtd ?? "", konteks),
   };
 }
 

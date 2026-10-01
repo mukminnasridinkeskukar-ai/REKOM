@@ -76,10 +76,12 @@ export async function POST(req: Request) {
     }
 
     const templateNomor = jenis?.templateNomor ?? "440/{seq}/{kode}/Dinkes-Kukar/{year}";
+    const now = new Date();
     const nomorContoh = templateNomor
       .replaceAll("{seq}", "001")
       .replaceAll("{kode}", jenis?.kodeJenis ?? "SDMK")
-      .replaceAll("{year}", String(new Date().getFullYear()));
+      .replaceAll("{month}", String(now.getMonth() + 1).padStart(2, "0"))
+      .replaceAll("{year}", String(now.getFullYear()));
 
     const origin = req.headers.get("origin") ?? new URL(req.url).origin;
     const verifikasiUrl = `${origin}/verifikasi/contoh-pratinjau`;

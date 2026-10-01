@@ -75,6 +75,7 @@ function toJenisDTO(j: NonNullable<PrismaPengajuan["jenis"]>): JenisRekomDTO {
     templateNomor: j.templateNomor,
     isActive: j.isActive,
     urutan: j.urutan,
+    templateSurat: (j as { templateSurat?: string | null }).templateSurat ?? null,
   };
 }
 
@@ -172,9 +173,11 @@ async function notifyRole(role: string, pengajuanId: string, judul: string, pesa
   }
 }
 
-/** Hasilkan nomor surat dari template master jenis: 440/{seq}/{kode}/Dinkes-Kukar/{year} */
+/** Hasilkan nomor surat dari template master jenis: mis. 440/{seq}/{kode}/Dinkes-Kukar/{year} atau B-{seq}/DINKES/400.9.13.2/{month}/{year} */
 async function generateNomorSurat(jenisId: string, kodeJenis: string, templateNomor: string): Promise<string> {
-  const year = new Date().getFullYear();
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
   const count = await db.pengajuan.count({
     where: { jenisId, nomorSurat: { not: null } },
   });
@@ -182,6 +185,7 @@ async function generateNomorSurat(jenisId: string, kodeJenis: string, templateNo
   return templateNomor
     .replaceAll("{seq}", seq)
     .replaceAll("{kode}", kodeJenis)
+    .replaceAll("{month}", month)
     .replaceAll("{year}", String(year));
 }
 

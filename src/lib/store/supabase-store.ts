@@ -374,9 +374,16 @@ export class SupabaseStore implements Store {
         p_jenis_id: current.jenis?.id,
       });
       if (rpcErr || !nomor) {
-        // fallback lokal bila RPC gagal
-        const year = new Date().getFullYear();
-        payload.nomor_surat = `440/${String(Date.now() % 1000).padStart(3, "0")}/${current.jenis?.kodeJenis ?? "REK"}/Dinkes-Kukar/${year}`;
+        // fallback lokal bila RPC gagal — ikuti template_nomor jenis + dukungan {month}
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const tplNomor = current.jenis?.templateNomor ?? "440/{seq}/{kode}/Dinkes-Kukar/{year}";
+        payload.nomor_surat = tplNomor
+          .replaceAll("{seq}", String(Date.now() % 1000).padStart(3, "0"))
+          .replaceAll("{kode}", current.jenis?.kodeJenis ?? "REK")
+          .replaceAll("{month}", month)
+          .replaceAll("{year}", String(year));
       } else {
         payload.nomor_surat = nomor;
       }

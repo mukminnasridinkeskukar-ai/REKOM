@@ -58,6 +58,71 @@ function OptionsInput({ value, onChange }: { value: string[]; onChange: (v: stri
   );
 }
 
+/** Editor daftar baris identitas: Label : [placeholder | nilai manual] — dipakai blok 1 & 2 */
+function BarisIdentitasEditor({
+  rows,
+  setRows,
+  kunciTersedia,
+}: {
+  rows: { label: string; kunci: string; nilai?: string }[];
+  setRows: (r: { label: string; kunci: string; nilai?: string }[]) => void;
+  kunciTersedia: { kunci: string; label: string }[];
+}) {
+  const ubah = (i: number, patch: Partial<{ label: string; kunci: string; nilai?: string }>) =>
+    setRows(rows.map((x, xi) => (xi === i ? { ...x, ...patch } : x)));
+  return (
+    <div className="space-y-2">
+      {rows.map((b, i) => {
+        const manual = !b.kunci;
+        const opsi = kunciTersedia.some((k) => k.kunci === b.kunci)
+          ? kunciTersedia
+          : b.kunci
+            ? [{ kunci: b.kunci, label: b.kunci }, ...kunciTersedia]
+            : kunciTersedia;
+        return (
+          <div key={i} className="grid grid-cols-[110px_1fr_1fr_36px] items-center gap-2">
+            <Input placeholder="Label" value={b.label} onChange={(e) => ubah(i, { label: e.target.value })} />
+            <Select
+              value={manual ? "__manual__" : b.kunci}
+              onValueChange={(v) => ubah(i, v === "__manual__" ? { kunci: "" } : { kunci: v })}
+            >
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {opsi.map((k) => (
+                  <SelectItem key={k.kunci} value={k.kunci}>
+                    {`{${k.kunci}`}{"}"} — {k.label}
+                  </SelectItem>
+                ))}
+                <SelectItem value="__manual__">Isi manual…</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder={manual ? "Nilai tetap / boleh {placeholder}" : "Timpa manual (opsional)"}
+              value={b.nilai ?? ""}
+              onChange={(e) => ubah(i, { nilai: e.target.value })}
+            />
+            <button
+              type="button"
+              onClick={() => setRows(rows.filter((_, xi) => xi !== i))}
+              className="text-red-400 hover:text-red-600"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+        );
+      })}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => setRows([...rows, { label: "", kunci: "nama_pemohon" }])}
+      >
+        <Plus className="size-3.5" /> Tambah baris
+      </Button>
+    </div>
+  );
+}
+
 /** Tab editor Template Surat — format surat per jenis mengikuti template resmi Dinkes */
 function TabTemplateSurat({
   tpl,
@@ -83,6 +148,14 @@ function TabTemplateSurat({
   useEffect(() => {
     const normal = penutupTeks.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean).join("\n\n");
     if (normal !== tpl.penutup.join("\n\n")) setPenutupTeks(tpl.penutup.join("\n\n"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tpl]);
+
+  // baris penempatan TTD ("Ditetapkan di / Pada tanggal") — satu baris per kalimat
+  const [penempatanTeks, setPenempatanTeks] = useState((tpl.penempatanTtd ?? []).join("\n"));
+  useEffect(() => {
+    const normal = penempatanTeks.split("\n").map((s) => s.trim()).filter(Boolean).join("\n");
+    if (normal !== (tpl.penempatanTtd ?? []).join("\n")) setPenempatanTeks((tpl.penempatanTtd ?? []).join("\n"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tpl]);
 
@@ -121,8 +194,28 @@ function TabTemplateSurat({
           <Input value={tpl.judul} onChange={(e) => set({ judul: e.target.value })} placeholder="Surat Rekomendasi" />
         </div>
         <div>
+          <Label className="mb-1.5 block text-sm">Letak Nomor Surat</Label>
+          <Select value={tpl.letakNomor === "bawah" ? "bawah" : "atas"} onValueChange={(v) => set({ letakNomor: v as "atas" | "bawah" })}>
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="atas">Nomor dulu, judul di bawah (klasik)</SelectItem>
+              <SelectItem value="bawah">Judul dulu, nomor di tengah (pernyataan)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
           <Label className="mb-1.5 block text-sm">Kota Tanda Tangan</Label>
           <Input value={tpl.kotaTtd} onChange={(e) => set({ kotaTtd: e.target.value })} placeholder="Tenggarong" />
+        </div>
+        <div>
+          <Label className="mb-1.5 block text-sm">Gaya Tanda Tangan</Label>
+          <Select value={tpl.gayaTtd === "elektronik" ? "elektronik" : "klasik"} onValueChange={(v) => set({ gayaTtd: v as "klasik" | "elektronik" })}>
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="klasik">Klasik — jabatan + nama + NIP</SelectItem>
+              <SelectItem value="elektronik">Elektronik — kotak BSrE + QR di samping</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div>
@@ -130,74 +223,83 @@ function TabTemplateSurat({
         <Input value={tpl.lampiran} onChange={(e) => set({ lampiran: e.target.value })} placeholder="Kosongkan bila tidak perlu" />
       </div>
       <div>
-        <Label className="mb-1.5 block text-sm">Paragraf Pembuka</Label>
-        <Textarea rows={3} value={tpl.pembuka} onChange={(e) => set({ pembuka: e.target.value })} />
+        <Label className="mb-1.5 block text-sm">Paragraf Pembuka — Blok Identitas 1</Label>
+        <Textarea rows={2} value={tpl.pembuka} onChange={(e) => set({ pembuka: e.target.value })} placeholder="mis: Yang bertanda tangan di bawah ini:" />
       </div>
 
       <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <Label className="block text-sm">Baris Identitas Pemohon</Label>
-        </div>
-        <div className="space-y-2">
-          {tpl.barisIdentitas.map((b, i) => (
-            <div key={i} className="grid grid-cols-[140px_1fr_36px] items-center gap-2">
-              <Input
-                placeholder="Label"
-                value={b.label}
-                onChange={(e) => set({ barisIdentitas: tpl.barisIdentitas.map((x, xi) => (xi === i ? { ...x, label: e.target.value } : x)) })}
-              />
-              <Select
-                value={b.kunci}
-                onValueChange={(v) => set({ barisIdentitas: tpl.barisIdentitas.map((x, xi) => (xi === i ? { ...x, kunci: v } : x)) })}
-              >
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(kunciTersedia.some((k) => k.kunci === b.kunci)
-                    ? kunciTersedia
-                    : [{ kunci: b.kunci, label: b.kunci }, ...kunciTersedia]
-                  ).map((k) => (
-                    <SelectItem key={k.kunci} value={k.kunci}>
-                      {`{${k.kunci}}`} — {k.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <button
-                type="button"
-                onClick={() => set({ barisIdentitas: tpl.barisIdentitas.filter((_, xi) => xi !== i) })}
-                className="text-red-400 hover:text-red-600"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-          ))}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => set({ barisIdentitas: [...tpl.barisIdentitas, { label: "", kunci: "nama_pemohon" }] })}
-          >
-            <Plus className="size-3.5" /> Tambah baris
-          </Button>
-        </div>
+        <Label className="mb-1.5 block text-sm">Baris Identitas — Blok 1 (mis. pejabat penandatangan)</Label>
+        <BarisIdentitasEditor
+          rows={tpl.barisIdentitas}
+          setRows={(r) => set({ barisIdentitas: r })}
+          kunciTersedia={kunciTersedia}
+        />
       </div>
 
-      <div>
-        <Label className="mb-1.5 block text-sm">Paragraf Penutup</Label>
+      <div className="rounded-lg border border-dashed border-slate-300 p-3">
+        <p className="mb-2 text-sm font-semibold">Blok Identitas 2 — opsional</p>
+        <p className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
+          Untuk surat dengan dua blok identitas (mis. surat pernyataan: pejabat lalu pemohon).
+          Kosongkan untuk surat rekomendasi biasa.
+        </p>
+        <Label className="mb-1.5 block text-sm">Paragraf Pembuka Blok 2</Label>
         <Textarea
-          rows={5}
+          rows={2}
+          value={tpl.pembukaKedua ?? ""}
+          onChange={(e) => set({ pembukaKedua: e.target.value })}
+          placeholder="mis: Menyatakan dengan sesungguhnya bahwa nama yang tercantum di bawah ini:"
+        />
+        <div className="mt-2">
+          <Label className="mb-1.5 block text-sm">Baris Identitas — Blok 2 (mis. pemohon)</Label>
+          <BarisIdentitasEditor
+            rows={tpl.barisIdentitasKedua ?? []}
+            setRows={(r) => set({ barisIdentitasKedua: r })}
+            kunciTersedia={kunciTersedia}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label className="mb-1.5 block text-sm">Paragraf Penutup / Isi Surat</Label>
+        <Textarea
+          rows={6}
           value={penutupTeks}
           onChange={(e) => {
             setPenutupTeks(e.target.value);
             set({ penutup: e.target.value.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean) });
           }}
         />
-        <p className="mt-1 text-[11px] text-muted-foreground">Pisahkan tiap paragraf dengan satu baris kosong.</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Pisahkan tiap paragraf dengan satu baris kosong. Baris berawalan &ldquo;1. &rdquo;, &ldquo;2. &rdquo; dst. otomatis tercetak rata gantung seperti daftar ketentuan.
+        </p>
+      </div>
+
+      <div>
+        <Label className="mb-1.5 block text-sm">Baris Penempatan Tanda Tangan — opsional</Label>
+        <Textarea
+          rows={2}
+          value={penempatanTeks}
+          onChange={(e) => {
+            setPenempatanTeks(e.target.value);
+            set({ penempatanTtd: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) });
+          }}
+          placeholder={"Ditetapkan di: Tenggarong\nPada tanggal: {tgl_terbit}"}
+        />
+        <p className="mt-1 text-[11px] text-muted-foreground">Mengganti baris &ldquo;Kota, tanggal&rdquo;. Satu baris per kalimat.</p>
       </div>
 
       <div>
         <Label className="mb-1.5 block text-sm">Jabatan di Blok Tanda Tangan</Label>
         <Textarea rows={2} value={tpl.jabatanTtd} onChange={(e) => set({ jabatanTtd: e.target.value })} />
+        {tpl.gayaTtd === "elektronik" && (
+          <>
+            <p className="mt-1 text-[11px] text-muted-foreground">Gaya elektronik: tulis jabatan KAPITAL (mis. KEPALA DINAS KESEHATAN).</p>
+            <div className="mt-2">
+              <Label className="mb-1.5 block text-sm">Pangkat di Bawah Nama (TTD Elektronik)</Label>
+              <Input value={tpl.pangkatTtd ?? ""} onChange={(e) => set({ pangkatTtd: e.target.value })} placeholder="mis: Pembina Tingkat I" />
+            </div>
+          </>
+        )}
       </div>
 
       <div className="rounded-lg bg-slate-50 p-2.5">
