@@ -18,6 +18,7 @@ import {
   Phone,
   IdCard,
   ClipboardList,
+  TriangleAlert,
   MessageSquareWarning,
 } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
@@ -282,6 +283,7 @@ export function LightboxRekom({
                     {p.dokumen.map((d) => {
                       const url = infoDokumenUrl(d.fileUrl, d.id);
                       const gambar = d.tipeFile.startsWith("image/");
+                      const warisanHilang = d.fileUrl.startsWith("/api/files/") && isSupabaseConfigured();
                       return (
                         <button
                           key={d.id}
@@ -293,7 +295,7 @@ export function LightboxRekom({
                               : "border-slate-200 hover:border-brand/50 hover:shadow"
                           )}
                         >
-                          {gambar ? (
+                          {gambar && !warisanHilang ? (
                             <img src={url} alt={d.namaDokumen} className="h-16 w-full rounded-lg object-cover" />
                           ) : (
                             <span className="flex h-16 w-full items-center justify-center rounded-lg bg-brand-50 text-brand">
@@ -303,14 +305,20 @@ export function LightboxRekom({
                           <span className="line-clamp-2 w-full text-[10.5px] font-medium leading-tight text-slate-600">
                             {d.namaDokumen}
                           </span>
-                          <a
-                            href={url}
-                            download
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 text-[10px] text-teal-brand hover:underline"
-                          >
-                            <Download className="size-3" /> unduh
-                          </a>
+                          {warisanHilang ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-orange-500">
+                              <TriangleAlert className="size-3" /> perlu unggah ulang
+                            </span>
+                          ) : (
+                            <a
+                              href={url}
+                              download
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-[10px] text-teal-brand hover:underline"
+                            >
+                              <Download className="size-3" /> unduh
+                            </a>
+                          )}
                         </button>
                       );
                     })}
@@ -329,14 +337,16 @@ export function LightboxRekom({
                       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                         <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
                           <p className="truncate text-xs font-semibold">{dokumenAktif.namaDokumen}</p>
-                          <a
-                            href={previewUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] text-teal-brand"
-                          >
-                            <ExternalLink className="size-3" /> tab baru
-                          </a>
+                          {!berkasWarisanHilang && (
+                            <a
+                              href={previewUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-teal-brand"
+                            >
+                              <ExternalLink className="size-3" /> tab baru
+                            </a>
+                          )}
                         </div>
                         {berkasWarisanHilang ? (
                           <div className="space-y-1.5 p-4 text-center">
