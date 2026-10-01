@@ -13,5 +13,5 @@ export const APP_LONG_NAME =
   "Tata Kelola Rekomendasi Kepala Dinas Kesehatan Kabupaten Kutai Kartanegara";
 export const INSTANSI = "Dinas Kesehatan Kabupaten Kutai Kartanegara";
 export const ALAMAT_INSTANSI =
-  "Jalan Gajah Mada No. 9 Tenggarong, Kutai Kartanegara, Kalimantan Timur 75512";
+  "Jalan Cut Nyak Dien No. 33, Melayu, Tenggarong, Kutai Kartanegara, Kalimantan Timur 75512";
 export const TAHUN = new Date().getFullYear();
