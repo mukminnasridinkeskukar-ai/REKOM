@@ -78,6 +78,15 @@ create policy "dokumen: super_admin penuh" on public.dokumen_pendukung
   using (public.my_role() = 'super_admin') with check (true);
 
 -- ---------------------------------------------------------------------------
+-- 3b. SUPER ADMIN BOLEH MEMPERBAIKI DATA PROFIL (mis. melengkapi profil akun
+--     lama yang belum punya baris profiles)
+-- ---------------------------------------------------------------------------
+drop policy if exists "profiles: super_admin tambah" on public.profiles;
+create policy "profiles: super_admin tambah" on public.profiles
+  for insert to authenticated
+  with check (public.my_role() = 'super_admin');
+
+-- ---------------------------------------------------------------------------
 -- 4. TINJAUAN ISI BUCKET (read-only) — lihat penataan folder saat ini
 -- ---------------------------------------------------------------------------
 select bucket_id,
