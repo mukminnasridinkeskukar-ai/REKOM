@@ -39,7 +39,17 @@ export async function POST(req: Request) {
       p_no_hp: noHp,
       p_password: password,
     });
-    if (error) return Response.json({ error: error.message }, { status: 400 });
+    if (error) {
+      const rpcHilang = /could not find the function/i.test(error.message);
+      return Response.json(
+        {
+          error: rpcHilang
+            ? "Fitur pemulihan akun belum aktif di server database. Hubungi Admin (jalankan berkas SQL supabase-nik-akun.sql)."
+            : error.message,
+        },
+        { status: 400 }
+      );
+    }
     const row = Array.isArray(data) ? data[0] : data;
     if (!row?.ok) {
       const pesan = String(row?.pesan ?? "Gagal mengatur ulang kata sandi.");

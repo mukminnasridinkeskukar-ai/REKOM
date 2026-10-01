@@ -55,6 +55,8 @@ export default function DaftarPage() {
         const json = await res.json();
         if (json.terdaftar) {
           setNikCek({ status: "terdaftar", nama: json.namaLengkap, email: json.emailMasked });
+        } else if (json.error) {
+          setNikCek({ status: "idle" }); // layanan cek belum siap — validasi tetap di server saat daftar
         } else {
           setNikCek({ status: "bebas" });
         }
