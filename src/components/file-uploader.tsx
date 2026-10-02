@@ -5,6 +5,7 @@ import { CloudUpload, FileText, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { isSupabaseConfigured } from "@/lib/config";
 import { createClient } from "@/lib/supabase/client";
+import { folderPemohon, profilSaya } from "@/lib/upload-client";
 import { cn } from "@/lib/utils";
 
 export interface FileTerpilih {
@@ -81,7 +82,17 @@ export function FileUploader({
       if (isSupabaseConfigured()) {
         const supabase = createClient();
         if (supabase) {
-          const path = `${pengajuanId ?? "tmp"}/${Date.now()}-${fileFinal.name}`;
+          // Penataan per-folder pemohon (selaras upload-client):
+          //   {Nama-Pemohon--id8}/{idPengajuan | "pra-pengajuan"}/{timestamp}-{nama-berkas}
+          // Pengajuan baru belum punya ID saat unggah -> segmen "pra-pengajuan".
+          const profil = await profilSaya();
+          if (!profil?.id) {
+            throw new Error(
+              "Sesi berakhir — silakan masuk ulang, lalu unggah ulang berkas ini."
+            );
+          }
+          const folder = folderPemohon(profil.nama, profil.id);
+          const path = `${folder}/${pengajuanId ?? "pra-pengajuan"}/${Date.now()}-${fileFinal.name}`;
           const { error } = await supabase.storage.from("dokumen-rekom").upload(path, fileFinal, {
             contentType: record.tipeFile,
             upsert: false,

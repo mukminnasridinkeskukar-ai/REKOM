@@ -41,8 +41,9 @@ function namaAmanBerkas(nama: string): string {
 
 let profilCache: Promise<{ id: string; nama: string } | null> | null = null;
 
-/** Ambil profil pemohon yang sedang login (sekali per sesi halaman). */
-function profilSaya(): Promise<{ id: string; nama: string } | null> {
+/** Ambil profil pemohon yang sedang login (sekali per sesi halaman).
+ *  Dipakai juga oleh file-uploader agar folder penyimpanan konsisten. */
+export function profilSaya(): Promise<{ id: string; nama: string } | null> {
   if (!profilCache) {
     profilCache = fetch("/api/auth/me")
       .then((r) => (r.ok ? r.json() : null))
