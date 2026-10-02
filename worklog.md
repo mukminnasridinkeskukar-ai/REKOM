@@ -76,3 +76,37 @@ Stage Summary:
 - Storage per-folder pemohon aktif utk SEMUA alur unggah; policy mengunci folder
 - 10 dokumen yang dianggap hilang SELAMAT; pengajuan aktif (Dhinda, Margareta) dokumennya lengkap
 - Sisa kerja opsional: hapus 7 berkas tmp/ via Storage UI bila dikehendaki
+
+---
+Task ID: 5
+Agent: Super Z (main)
+Task: Pengembangan — berkas surat terbit bersumber dari folder Storage "rekom-terbit"
+
+Work Log:
+- Eksplorasi alur lama: aksi "terbitkan" (Kadis) men set file_rekom_pdf_url = /api/pengajuan/{id}/pdf (PDF tergenerasi)
+- Desain baru: penerbitan tetap sampai Kadis; saat "Tanda Tangan & Terbitkan" Kadis WAJIB memilih/mengunggah
+  berkas hasil TTD dari bucket Storage "rekom-terbit"; berkas itulah yang tampil di akun pemohon & QR
+- Backend: ActionInput.fileTerbit; supabase-store/demo-store validasi wajib berkas (path storage murni,
+  tolak URL/".."); simpan path ke file_rekom_pdf_url
+- Route baru /api/rekom-terbit/{id}: auth sesi (canRead) ATAU ?qr= valid; path -> URL publik
+  {URL}/storage/v1/object/public/rekom-terbit/{path}; nilai warisan (/api/..., http) tetap diikuti;
+  error = halaman HTML ramah (helper bersama src/lib/halaman-kesalahan.ts, /api/files ikut memakai)
+- UI: komponen dialog-terbitkan.tsx (daftar berkas bucket rekom-terbit via list rekursif depth<=2,
+  unggah langsung ke {kode}/{ts}-{nama}, radio pilih, tombol terbitkan terkunci tanpa berkas);
+  lightbox: urlSurat resolver (/api/rekom-terbit bila berkas storage, fallback PDF lama);
+  dashboard-client meneruskan fileTerbit; halaman verifikasi QR link baru
+- supabase-rekom-terbit.sql: bucket rekom-terbit, policy staf (super_admin/admin_tu/kadis) insert/
+  update/delete + select authenticated, DROP policy lama yang membuka unggah ke semua authenticated,
+  RPC security-definer rekom_berkas_publik(p_qr) utk akses QR publik
+- Rapikan lint admin/jenis (pola adjust-state-during-render); lint bersih
+- Uji e2e lokal (mode demo, agent-browser): login Kadis -> dialog -> unggah PDF uji -> terbitkan ->
+  status Terbit; pemohon melihat "Surat Rekomendasi Resmi" dari /api/rekom-terbit; tanpa sesi 401 HTML;
+  QR valid publik 302 -> berkas; QR palsu ditolak
+- Deploy 889813c + ce99053; produksi: route 401 HTML ramah AKTIF; bucket rekom-terbit menerima unggah
+  super_admin (200) & URL publik terbaca; RPC + policy baru MENUNGGU user menjalankan SQL
+
+Stage Summary:
+- Penerbitan kini mengikat berkas surat fisik (scan/PDF TTD) dari folder rekom-terbit ke pengajuan
+- Akun pemohon & halaman verifikasi QR menampilkan berkas tersebut (bukan PDF tergenerasi)
+- BLOKIR sementara: Kadis belum bisa unggah/melihat daftar sampai SQL supabase-rekom-terbit.sql dijalankan
+- Sisa: verifikasi tahap 2 (RPC + policy) setelah SQL dijalankan (scripts/verif-rekom-terbit-prod.py)
