@@ -110,3 +110,21 @@ Stage Summary:
 - Akun pemohon & halaman verifikasi QR menampilkan berkas tersebut (bukan PDF tergenerasi)
 - BLOKIR sementara: Kadis belum bisa unggah/melihat daftar sampai SQL supabase-rekom-terbit.sql dijalankan
 - Sisa: verifikasi tahap 2 (RPC + policy) setelah SQL dijalankan (scripts/verif-rekom-terbit-prod.py)
+
+---
+Task ID: 6
+Agent: Super Z (main)
+Task: Ganti alamat kantor — Jalan Gajah Mada No. 9 Tenggarong -> Jalan Cut Nyak Dien No.33 Tenggarong
+
+Work Log:
+- Pemetaan: 4 teks footer hardcoded (app-shell, login, beranda, verifikasi QR) + demo seed
+  (Jl. Gajah Mada No. 45 = alamat praktik fiktif, dibiarkan)
+- src/lib/config.ts ALAMAT_INSTANSI SUDAH alamat baru (dipakai kop surat PDF tergenerasi) — tak diubah
+- Edit 4 file -> "Jalan Cut Nyak Dien No.33 Tenggarong 75512"; verifikasi grep bersih
+- Commit 3e748e3; GitHub main masih 29cd505 (platform auto-snapshot c9bcfa8 TIDAK terpush)
+- Token push hilang setelah pembaruan sesi (tak ada di .git-credentials/.netrc/env/.lokalsimpen);
+  ls-remote anonim OK (repo public read), push tetap butuh token dari user
+
+Stage Summary:
+- Alamat kantor sudah diganti di 4 tampilan + kop surat sudah benar sejak config
+- MENUNGGU token akses GitHub dari user untuk push -> deploy produksi
