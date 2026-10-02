@@ -278,7 +278,7 @@ export default function HomePage() {
       <footer className="border-t border-slate-200 bg-white py-6">
         <div className="mx-auto max-w-7xl px-4 text-center text-xs leading-relaxed text-muted-foreground sm:px-6">
           <p className="font-semibold text-slate-600">E-REKOM — Dinas Kesehatan Kabupaten Kutai Kartanegara</p>
-          <p className="mt-1">Jalan Gajah Mada No. 9 Tenggarong, Kutai Kartanegara, Kalimantan Timur 75512</p>
+          <p className="mt-1">Jalan Cut Nyak Dien No.33 Tenggarong, Kutai Kartanegara, Kalimantan Timur 75512</p>
         </div>
       </footer>
     </div>

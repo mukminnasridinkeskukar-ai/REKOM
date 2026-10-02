@@ -299,7 +299,7 @@ export function AppShell({ user, children }: { user: MeDTO; children: React.Reac
 
       <footer className="border-t border-slate-200 bg-white py-4">
         <div className="mx-auto max-w-7xl px-4 text-center text-xs text-muted-foreground sm:px-6">
-          E-REKOM — Dinas Kesehatan Kabupaten Kutai Kartanegara · Jalan Gajah Mada No. 9 Tenggarong 75512
+          E-REKOM — Dinas Kesehatan Kabupaten Kutai Kartanegara · Jalan Cut Nyak Dien No.33 Tenggarong 75512
         </div>
       </footer>
     </div>

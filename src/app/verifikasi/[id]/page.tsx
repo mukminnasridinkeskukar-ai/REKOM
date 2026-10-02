@@ -108,7 +108,7 @@ export default async function VerifikasiPage({ params }: { params: Promise<{ id:
       </main>
 
       <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-muted-foreground">
-        E-REKOM — Dinas Kesehatan Kabupaten Kutai Kartanegara · Jalan Gajah Mada No. 9 Tenggarong 75512
+        E-REKOM — Dinas Kesehatan Kabupaten Kutai Kartanegara · Jalan Cut Nyak Dien No.33 Tenggarong 75512
       </footer>
     </div>
   );

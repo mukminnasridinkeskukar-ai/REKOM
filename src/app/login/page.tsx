@@ -80,7 +80,7 @@ export default function LoginPage() {
                 <LogIn className="size-4 text-gold" /> Notifikasi realtime ke seluruh pihak
               </li>
             </ul>
-            <p className="text-[11px] text-white/60">Jalan Gajah Mada No. 9 Tenggarong 75512</p>
+            <p className="text-[11px] text-white/60">Jalan Cut Nyak Dien No.33 Tenggarong 75512</p>
           </div>
 
           {/* panel kanan */}
