@@ -128,3 +128,11 @@ Work Log:
 Stage Summary:
 - Alamat kantor sudah diganti di 4 tampilan + kop surat sudah benar sejak config
 - MENUNGGU token akses GitHub dari user untuk push -> deploy produksi
+
+Lanjutan Task 6 (deploy):
+- Token GitHub diterima dari user; push OK: 29cd505..10ece45 main -> main
+  (10ece45 = snapshot platform worklog; fix alamat = 3e748e3 sudah termuat)
+- Produksi rekom.mukminnasri.com TIDAK berubah setelah ±25 menit polling
+  (x-vercel-cache MISS, no-store = bukan cache; server Vercel)
+- URL deployment vercel.app 404 semua; diduga deploy otomatis GitHub tidak terpicu / build gagal
+- Status: MENUNGGU user klik "Redeploy" di dashboard Vercel (atau lapor status build)
