@@ -30,7 +30,11 @@ on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- 2. KEBIJAKAN STORAGE bucket rekom-terbit
+--    (mengetatkan policy lama "authenticated unggah rekom terbit" yang
+--     dulu mengizinkan SEMUA pengguna — kini hanya staf yang boleh unggah)
 -- ---------------------------------------------------------------------------
+drop policy if exists "storage: authenticated unggah rekom terbit" on storage.objects;
+
 drop policy if exists "storage: staf kelola rekom-terbit (insert)" on storage.objects;
 create policy "storage: staf kelola rekom-terbit (insert)" on storage.objects
   for insert to authenticated
@@ -59,6 +63,8 @@ create policy "storage: staf kelola rekom-terbit (delete)" on storage.objects
     and public.my_role() in ('super_admin', 'admin_tu', 'kadis')
   );
 
+-- baca & daftar berkas: semua pengguna terautentikasi (dibutuhkan dialog pilih berkas);
+-- unduh publik tanpa login tetap diizinkan via policy lama "publik baca rekom terbit"
 drop policy if exists "storage: baca rekom-terbit (authenticated)" on storage.objects;
 create policy "storage: baca rekom-terbit (authenticated)" on storage.objects
   for select to authenticated
