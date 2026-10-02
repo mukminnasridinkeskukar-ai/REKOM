@@ -85,6 +85,15 @@ function kodePengajuan(id: string, createdAt: string | Date): string {
   return `RK-${d.getFullYear()}-${suffix}`;
 }
 
+/** Validasi path berkas surat terbit: harus path storage murni, bukan URL / path aplikasi. */
+function berkasTerbitValid(path: string): boolean {
+  const p = path.trim();
+  if (!p || p.length > 500) return false;
+  if (p.startsWith("/") || /^(https?:)?\/\//i.test(p)) return false;
+  if (p.includes("..") || p.includes("\\")) return false;
+  return true;
+}
+
 function toJenisDTO(j: RowJenis): JenisRekomDTO {
   return {
     id: j.id,
@@ -362,6 +371,14 @@ export class SupabaseStore implements Store {
         ke = "menunggu_ttd_kadis";
         break;
       case "terbitkan":
+        // Berkas surat terbit WAJIB berasal dari folder Storage "rekom-terbit"
+        if (!input.fileTerbit || !berkasTerbitValid(input.fileTerbit)) {
+          return {
+            ok: false,
+            error:
+              "Pilih atau unggah dulu berkas surat hasil tanda tangan dari folder rekom-terbit sebelum menerbitkan.",
+          };
+        }
         ke = "terbit";
         break;
       default:
@@ -394,7 +411,8 @@ export class SupabaseStore implements Store {
     if (input.action === "terbitkan") {
       payload.tgl_terbit = new Date().toISOString();
       payload.qr_code_id = randomUUID();
-      payload.file_rekom_pdf_url = `/api/pengajuan/${id}/pdf`;
+      // Simpan PATH Storage (bucket rekom-terbit), bukan URL — disajikan via /api/rekom-terbit/{id}
+      payload.file_rekom_pdf_url = input.fileTerbit!.replace(/^\/+/, "");
     }
 
     const { error: upErr } = await supabase.from("pengajuan_rekom").update(payload).eq("id", id);
@@ -450,7 +468,7 @@ export class SupabaseStore implements Store {
         await notifyRole("kadis", judulNotif, `Surat telah diberi nomor, menunggu tanda tangan Kepala Dinas.`);
         break;
       case "terbitkan":
-        if (current.pemohon) await insertNotif(current.pemohon.id, `Surat terbit: ${current.judulPengajuan}`, `Rekomendasi Anda telah ditandatangani Kepala Dinas dan terbit.`);
+        if (current.pemohon) await insertNotif(current.pemohon.id, `Surat terbit: ${current.judulPengajuan}`, `Rekomendasi Anda telah ditandatangani Kepala Dinas dan terbit. Surat resmi dapat dilihat & diunduh di detail pengajuan.`);
         break;
     }
 

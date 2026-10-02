@@ -30,8 +30,8 @@ export function folderPemohon(nama: string, uid: string): string {
   return `${bersih}--${String(uid ?? "").replace(/-/g, "").slice(0, 8)}`;
 }
 
-/** Nama berkas yang aman untuk path storage. */
-function namaAmanBerkas(nama: string): string {
+/** Nama berkas yang aman untuk path storage. Dipakai juga oleh dialog terbitkan. */
+export function namaAmanBerkas(nama: string): string {
   return (nama || "berkas")
     .replace(/[^\w.\- ]+/g, "-")
     .replace(/\s+/g, "-")

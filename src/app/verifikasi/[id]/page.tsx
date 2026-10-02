@@ -82,7 +82,7 @@ export default async function VerifikasiPage({ params }: { params: Promise<{ id:
                   <p className="mt-1 break-all font-mono text-[10px] text-slate-400">{hasil.qrCodeId}</p>
                 </div>
                 <Button asChild className="bg-teal-brand hover:bg-teal-brand/90">
-                  <a href={`/api/pengajuan/${hasil.pengajuanId}/pdf?qr=${hasil.qrCodeId}`} target="_blank" rel="noreferrer">
+                  <a href={`/api/rekom-terbit/${hasil.pengajuanId}?qr=${hasil.qrCodeId}`} target="_blank" rel="noreferrer">
                     Lihat PDF Surat
                   </a>
                 </Button>

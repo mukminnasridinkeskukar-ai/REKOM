@@ -40,11 +40,13 @@ const TIPE_FIELD = [
 function OptionsInput({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
   const [teks, setTeks] = useState(value.join(", "));
   // sinkron bila daftar pilihan berubah dari luar (edit JSON, ganti tipe, dsb.)
-  useEffect(() => {
+  // — pola "adjust state during render"
+  const [valueSebelum, setValueSebelum] = useState(value);
+  if (valueSebelum !== value) {
+    setValueSebelum(value);
     const normal = teks.split(",").map((s) => s.trim()).filter(Boolean).join(", ");
     if (normal !== value.join(", ")) setTeks(value.join(", "));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }
   return (
     <Input
       className="ml-1 text-xs"
@@ -143,21 +145,20 @@ function TabTemplateSurat({
 }) {
   const set = (patch: Partial<TemplateSurat>) => setTpl({ ...tpl, ...patch });
 
-  // teks penutup disimpan lokal agar baris kosong pemisah paragraf tetap terlihat saat mengetik
+  // teks penutup & penempatan TTD disimpan lokal agar baris kosong pemisah paragraf tetap
+  // terlihat saat mengetik — disinkronkan bila tpl berubah dari luar (pola adjust-during-render)
   const [penutupTeks, setPenutupTeks] = useState(tpl.penutup.join("\n\n"));
-  useEffect(() => {
-    const normal = penutupTeks.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean).join("\n\n");
-    if (normal !== tpl.penutup.join("\n\n")) setPenutupTeks(tpl.penutup.join("\n\n"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tpl]);
-
   // baris penempatan TTD ("Ditetapkan di / Pada tanggal") — satu baris per kalimat
   const [penempatanTeks, setPenempatanTeks] = useState((tpl.penempatanTtd ?? []).join("\n"));
-  useEffect(() => {
-    const normal = penempatanTeks.split("\n").map((s) => s.trim()).filter(Boolean).join("\n");
-    if (normal !== (tpl.penempatanTtd ?? []).join("\n")) setPenempatanTeks((tpl.penempatanTtd ?? []).join("\n"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tpl]);
+  const [tplSebelum, setTplSebelum] = useState(tpl);
+  if (tplSebelum !== tpl) {
+    setTplSebelum(tpl);
+    const normalPenutup = penutupTeks.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean).join("\n\n");
+    if (normalPenutup !== tpl.penutup.join("\n\n")) setPenutupTeks(tpl.penutup.join("\n\n"));
+    const normalPenempatan = penempatanTeks.split("\n").map((s) => s.trim()).filter(Boolean).join("\n");
+    if (normalPenempatan !== (tpl.penempatanTtd ?? []).join("\n"))
+      setPenempatanTeks((tpl.penempatanTtd ?? []).join("\n"));
+  }
 
   if (tplDefault) {
     return (
@@ -342,12 +343,18 @@ function PratinjauSuratDialog({
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // reset pratinjau saat dialog dibuka/ditutup (adjust state during render)
+  const [prevOpen, setPrevOpen] = useState(false);
+  if (state.open !== prevOpen) {
+    setPrevOpen(state.open);
+    setUrl(null);
+    setLoading(state.open);
+  }
+
   useEffect(() => {
     if (!state.open) return;
     let objUrl: string | null = null;
     let batal = false;
-    setLoading(true);
-    setUrl(null);
     fetch("/api/jenis/pratinjau-surat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

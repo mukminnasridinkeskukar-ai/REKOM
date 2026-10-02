@@ -111,13 +111,13 @@ export function DashboardClient({ user }: { user: MeDTO }) {
     });
   }, [semua, q, jenisId, status, from, to]);
 
-  const lakukanAksi = async (id: string, aksi: AksiTersedia, catatan?: string) => {
+  const lakukanAksi = async (id: string, aksi: AksiTersedia, catatan?: string, fileTerbit?: string) => {
     setBusy(true);
     try {
       const res = await fetch(`/api/pengajuan/${id}/action`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: aksi, catatan }),
+        body: JSON.stringify({ action: aksi, catatan, fileTerbit }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Gagal memproses aksi");

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { TimelineStepper } from "@/components/timeline-stepper";
+import { DialogTerbitkan } from "@/components/dialog-terbitkan";
 import { tanggalSingkat } from "@/components/card-rekom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -68,12 +69,13 @@ export function LightboxRekom({
   visible: boolean;
   onClose: () => void;
   onNavigate: (idx: number) => void;
-  onAksi: (id: string, aksi: AksiTersedia, catatan?: string) => void;
+  onAksi: (id: string, aksi: AksiTersedia, catatan?: string, fileTerbit?: string) => void;
 }) {
   const p = index >= 0 && index < daftar.length ? daftar[index] : undefined;
   const [aktifDok, setAktifDok] = useState<string | null>(null);
   const [catatan, setCatatan] = useState("");
   const [aksiTerpilih, setAksiTerpilih] = useState<AksiTersedia | null>(null);
+  const [bukaTerbit, setBukaTerbit] = useState(false);
 
   // reset status internal saat pindah pengajuan (pattern "adjust state during render")
   const [prevId, setPrevId] = useState<string | undefined>(p?.id);
@@ -82,6 +84,7 @@ export function LightboxRekom({
     setAktifDok(null);
     setCatatan("");
     setAksiTerpilih(null);
+    setBukaTerbit(false);
   }
 
   const goto = useCallback(
@@ -115,6 +118,13 @@ export function LightboxRekom({
 
   const dokumenAktif = p.dokumen.find((d) => d.id === aktifDok) ?? null;
   const pdfTersedia = Boolean(p.fileRekomPdfUrl) || p.status === "terbit";
+  // Surat resmi: status terbit + berkas dari folder rekom-terbit -> via /api/rekom-terbit;
+  // nilai warisan (/api/pengajuan/{id}/pdf dari mode lama) tetap memakai PDF tergenerasi.
+  const suratDariStorage =
+    Boolean(p.fileRekomPdfUrl) &&
+    !p.fileRekomPdfUrl!.startsWith("/api/pengajuan") &&
+    !p.fileRekomPdfUrl!.startsWith("http");
+  const urlSurat = suratDariStorage ? `/api/rekom-terbit/${p.id}` : `/api/pengajuan/${p.id}/pdf`;
   const previewUrl = dokumenAktif ? infoDokumenUrl(dokumenAktif.fileUrl, dokumenAktif.id) : null;
   const isGambar = dokumenAktif?.tipeFile.startsWith("image/");
   const isPdf = dokumenAktif?.tipeFile.includes("pdf") ?? false;
@@ -124,6 +134,11 @@ export function LightboxRekom({
   const pemilik = p.pemohon?.id === user.id;
 
   const mulaiAksi = (a: AksiTersedia) => {
+    if (a === "terbitkan") {
+      // Penerbitan kini wajib menyertakan berkas surat dari folder rekom-terbit
+      setBukaTerbit(true);
+      return;
+    }
     if (AKSI_PERLU_CATATAN.includes(a)) {
       setAksiTerpilih(a);
       return;
@@ -224,7 +239,7 @@ export function LightboxRekom({
                 {pdfTersedia && (
                   <div className="flex items-center gap-1.5">
                     <a
-                      href={`/api/pengajuan/${p.id}/pdf`}
+                      href={urlSurat}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100"
@@ -232,7 +247,7 @@ export function LightboxRekom({
                       <FileCheck2 className="size-3.5" /> PDF Resmi
                     </a>
                     <a
-                      href={`/api/pengajuan/${p.id}/pdf`}
+                      href={urlSurat}
                       download
                       className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-200"
                     >
@@ -255,7 +270,7 @@ export function LightboxRekom({
                       </p>
                     </div>
                     <iframe
-                      src={`/api/pengajuan/${p.id}/pdf#toolbar=0&view=FitH`}
+                      src={`${urlSurat}#toolbar=0&view=FitH`}
                       className="h-72 w-full bg-slate-100 sm:h-80"
                       title="Pratinjau PDF rekomendasi"
                     />
@@ -551,6 +566,20 @@ export function LightboxRekom({
         </motion.div>
         </motion.div>
       )}
+
+      {/* Dialog penerbitan: pilih/unggah berkas surat dari folder rekom-terbit */}
+      <DialogTerbitkan
+        open={bukaTerbit}
+        onOpenChange={setBukaTerbit}
+        pengajuanId={p.id}
+        kode={p.kode}
+        judul={p.judulPengajuan}
+        busy={busy}
+        onSubmit={(path) => {
+          setBukaTerbit(false);
+          onAksi(p.id, "terbitkan", undefined, path);
+        }}
+      />
     </AnimatePresence>
   );
 }

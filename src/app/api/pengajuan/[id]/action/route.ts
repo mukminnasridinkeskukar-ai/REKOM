@@ -11,6 +11,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const result = await store.applyAction(auth.user, id, {
       action: String(body?.action ?? ""),
       catatan: body?.catatan ? String(body.catatan) : undefined,
+      fileTerbit: body?.fileTerbit ? String(body.fileTerbit) : undefined,
     });
     if (!result.ok) return Response.json({ error: result.error }, { status: 400 });
     const data = await store.getPengajuan(auth.user, id);

@@ -401,6 +401,14 @@ export class DemoStore implements Store {
         ke = "menunggu_ttd_kadis";
         break;
       case "terbitkan":
+        // Berkas surat terbit wajib disertakan (unggahan / pilihan dari folder rekom-terbit)
+        if (!input.fileTerbit || !input.fileTerbit.trim()) {
+          return {
+            ok: false,
+            error:
+              "Pilih atau unggah dulu berkas surat hasil tanda tangan sebelum menerbitkan.",
+          };
+        }
         ke = "terbit";
         break;
       default:
@@ -418,7 +426,8 @@ export class DemoStore implements Store {
     if (input.action === "terbitkan") {
       data.tglTerbit = now;
       data.qrCodeId = randomUUID();
-      data.fileRekomPdfUrl = `/api/pengajuan/${p.id}/pdf`;
+      // Mode demo: nilai berupa URL /api/files/... dari /api/upload; mode Supabase: path bucket rekom-terbit
+      data.fileRekomPdfUrl = input.fileTerbit!.trim();
     }
 
     await db.pengajuan.update({ where: { id: p.id }, data });
@@ -461,7 +470,7 @@ export class DemoStore implements Store {
         await notifyRole("kadis", p.id, judulNotif, `Surat telah diberi nomor, menunggu tanda tangan Kepala Dinas.`);
         break;
       case "terbitkan":
-        await notify(p.pemohonId, p.id, `Surat terbit: ${p.judulPengajuan}`, `Rekomendasi Anda telah ditandatangani Kepala Dinas dan terbit. Unduh PDF di detail pengajuan.`);
+        await notify(p.pemohonId, p.id, `Surat terbit: ${p.judulPengajuan}`, `Rekomendasi Anda telah ditandatangani Kepala Dinas dan terbit. Surat resmi dapat dilihat & diunduh di detail pengajuan.`);
         break;
     }
 

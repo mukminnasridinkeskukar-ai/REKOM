@@ -46,6 +46,8 @@ export interface DokumenMeta {
 export interface ActionInput {
   action: string;
   catatan?: string;
+  /** (khusus aksi "terbitkan") path berkas surat terbit di bucket Storage "rekom-terbit" */
+  fileTerbit?: string;
 }
 
 export interface AdminUserDTO {
