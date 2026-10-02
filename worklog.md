@@ -136,3 +136,12 @@ Lanjutan Task 6 (deploy):
   (x-vercel-cache MISS, no-store = bukan cache; server Vercel)
 - URL deployment vercel.app 404 semua; diduga deploy otomatis GitHub tidak terpicu / build gagal
 - Status: MENUNGGU user klik "Redeploy" di dashboard Vercel (atau lapor status build)
+
+Penyelesaian Task 6 (LIVE):
+- Build lokal mereproduksi error Vercel: files/[id]/route.tsx:11 impor UPLOAD_DIR dari
+  @/app/api/upload/route yang terhapus -> Module not found -> bun run build exit 1
+- Penyebab: .git/info/exclude (lokal) berisi upload/ + snapshot platform menghapus file;
+  git add awal ditolak gitignore -> dibersihkan exclude-nya, file dipulihkan dari 29cd505
+- Build lokal lulus; commit 730a2a1; push OK; auto-deploy Vercel sukses (~90 dtk)
+- Verifikasi produksi: landing + login memuat "Cut Nyak Dien"; "Gajah Mada" = 0 sisa
+- Status: SELESAI — alamat kantor baru tayang di seluruh halaman
