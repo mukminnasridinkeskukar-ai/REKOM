@@ -172,3 +172,35 @@ Stage Summary:
 - Kode fitur siap & teruji lokal; MENUNGGU token GitHub baru utk push -> deploy
 - MENUNGGU user menjalankan supabase-pulih-dashboard-verifikasi-nik.sql (perbaikan dashboard
   + mengaktifkan backend verifikasi NIK di produksi)
+
+---
+Task ID: 7 (lanjutan — deploy & verifikasi produksi)
+Agent: Super Z (main)
+Task: Push commit ef3c0e9 (verifikasi NIK + pulih dashboard) dgn token GitHub baru; verifikasi produksi
+
+Work Log:
+- Token baru diterima; build lokal lulus; push OK: 730a2a1..4074726 main -> main
+  (memuat ef3c0e9 = fitur verifikasi NIK + perbaikan dashboard + rename /api/upload -> /api/unggah)
+- Cek Supabase produksi: RPC rekom_verifikasi_nik ADA (HTTP 200) -> user sudah menjalankan
+  supabase-pulih-dashboard-verifikasi-nik.sql
+- Poll produksi: deploy tayang saat POST /api/verifikasi-nik berubah 404 -> 400 (±3 menit setelah push)
+- Verifikasi produksi:
+  * /verifikasi memuat tab NIK
+  * POST NIK dummy 16 digit -> {"data":[]} HTTP 200 (tidak terdaftar = empty state)
+  * NIK 3515044412050001 (Margareta Fitri) -> menemukan pengajuan terbit B-003/DINKES/...,
+    jenis Beasiswa Afirmasi, adaBerkas=true
+  * Unduh /api/rekom-terbit/{id}?nik=cocok -> 302 ke berkas bucket rekom-terbit, PDF utuh 723 KB 2 hal
+  * NIK salah -> 403 halaman ramah "Verifikasi Tidak Cocok — E-REKOM Dinkes Kukar"
+- Dashboard: login superadmin@dinkes.go.id -> role super_admin, /api/pengajuan 15 data,
+  /api/stats {totalPengajuan:15, terbit:11, terbitBulanIni:11, totalJenis:4} -> TIDAK lagi 0
+- Akun pemohon@dinkes.go.id (email asli verifikator.sekretariat@dinkes.go.id) role pemohon,
+  0 pengajuan = wajar (belum punya pengajuan sendiri)
+- Token GitHub TIDAK disimpan (dihapus dari kredensial sesi; keamanan seperti pola sebelumnya)
+
+Stage Summary:
+- SELESAI di produksi: dashboard menampilkan data nyata; verifikasi keaslian via NIK aktif
+  (cocok -> unduh surat terbit, salah -> ditolak)
+- Catatan: angka "diajukan:0" normal — 15 pengajuan terdiri dari 11 terbit + sisanya
+  menunggu_ttd_kadis/etapas lain sesuai definisi status
+- Langkah opsional berikutnya (opsional bagi user): coba alur Kadis "Tanda Tangan & Terbitkan"
+  untuk mengisi bucket rekom-terbit utk pengajuan lain yang masih menunggu TTD
