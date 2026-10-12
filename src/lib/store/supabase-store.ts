@@ -582,6 +582,25 @@ export class SupabaseStore implements Store {
 
   async stats(): Promise<StatsDTO> {
     const supabase = await mustClient();
+    // Utama: RPC security-definer — statistik beranda dihitung server-side
+    // TANPA sesi (anon); RLS mengembalikan 0 bila hitung langsung.
+    // RPC hanya memaparkan angka agregat publik, tanpa data pribadi.
+    const { data: rpc, error: errRpc } = await supabase.rpc("rekom_stats_publik");
+    if (!errRpc && rpc) {
+      const row = (Array.isArray(rpc) ? rpc[0] : rpc) as Record<string, unknown> | undefined;
+      if (row) {
+        return {
+          totalPengajuan: Number(row.total_pengajuan) || 0,
+          diajukan: Number(row.diajukan) || 0,
+          terbit: Number(row.terbit) || 0,
+          perluPerbaikan: Number(row.perlu_perbaikan) || 0,
+          terbitBulanIni: Number(row.terbit_bulan_ini) || 0,
+          totalJenis: Number(row.total_jenis) || 0,
+        };
+      }
+    }
+    // Fallback: hitung langsung (berlaku bila sesi punya akses RLS,
+    // atau masa transisi sebelum SQL rekom_stats_publik dijalankan).
     const countBy = async (col?: string, val?: string) => {
       let q = supabase.from("pengajuan_rekom").select("id", { count: "exact", head: true });
       if (col && val) q = q.eq(col, val);
