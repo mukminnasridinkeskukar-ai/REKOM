@@ -104,7 +104,7 @@ export function FileUploader({
       } else {
         const form = new FormData();
         form.append("file", fileFinal);
-        const res = await fetch("/api/upload", { method: "POST", body: form });
+        const res = await fetch("/api/unggah", { method: "POST", body: form });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Gagal mengunggah");
         record.fileUrl = json.data.fileUrl;

@@ -8,7 +8,7 @@ import { renderToBuffer, Document, Page, Text, View, StyleSheet } from "@react-p
 import { getSessionUser } from "@/lib/session";
 import { getStore } from "@/lib/store";
 import { isSupabaseConfigured } from "@/lib/config";
-import { UPLOAD_DIR } from "@/app/api/upload/route";
+import { UPLOAD_DIR } from "@/app/api/unggah/route";
 import { halamanKesalahan } from "@/lib/halaman-kesalahan";
 
 const styles = StyleSheet.create({

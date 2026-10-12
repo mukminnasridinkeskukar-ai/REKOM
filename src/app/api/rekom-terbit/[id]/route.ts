@@ -13,7 +13,9 @@ import type { PengajuanDTO } from "@/lib/types";
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const qr = new URL(req.url).searchParams.get("qr");
+  const params = new URL(req.url).searchParams;
+  const qr = params.get("qr");
+  const nik = (params.get("nik") ?? "").replace(/\D/g, "");
   const store = await getStore();
 
   let pengajuan: PengajuanDTO | null = null;
@@ -26,7 +28,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   }
 
   // 2) akses publik via QR valid (halaman verifikasi surat)
-  if (!pengajuan && qr) {
+  if (!pengajuan && !berkasLangsung && qr) {
     const v = await store.verifySurat(qr).catch(() => null);
     if (v && v.pengajuanId === id) {
       // RPC security-definer: ambil path berkas surat terbit tanpa sesi.
@@ -44,8 +46,22 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     }
   }
 
+  // 2b) akses publik via NIK pemohon (verifikasi keaslian, tanpa login)
+  if (!pengajuan && !berkasLangsung && nik.length === 16) {
+    const path = await store.berkasTerbitNik(id, nik).catch(() => null);
+    if (path) berkasLangsung = path;
+  }
+
   if (!pengajuan && !berkasLangsung) {
     if (!user) {
+      if (nik.length === 16) {
+        return halamanKesalahan(
+          "Verifikasi Tidak Cocok",
+          "NIK yang Anda masukkan tidak sesuai dengan surat rekomendasi terbit ini, atau berkas surat belum tersedia. Periksa kembali NIK pemohon yang tercantum pada surat.",
+          403,
+          true
+        );
+      }
       return halamanKesalahan(
         "Sesi Berakhir",
         "Untuk membuka surat rekomendasi, silakan masuk ke akun Anda terlebih dahulu, atau pindai kode QR yang tertera pada surat.",

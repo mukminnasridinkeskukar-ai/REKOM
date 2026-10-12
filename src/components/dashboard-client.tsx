@@ -43,13 +43,17 @@ export function DashboardClient({ user }: { user: MeDTO }) {
   const [to, setTo] = useState("");
 
   const [idBuka, setIdBuka] = useState<string | null>(null);
+  const [galat, setGalat] = useState<string | null>(null);
 
   const muatUlang = useCallback(async () => {
     try {
       const res = await fetch("/api/pengajuan", { cache: "no-store" });
-      if (!res.ok) return;
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? `Gagal memuat data (${res.status}).`);
       setSemua(json.data ?? []);
+      setGalat(null);
+    } catch (e) {
+      setGalat((e as Error).message || "Gagal memuat data.");
     } finally {
       setLoading(false);
     }
@@ -215,6 +219,26 @@ export function DashboardClient({ user }: { user: MeDTO }) {
           )}
         </div>
       </div>
+
+      {/* ===== Peringatan gagal muat ===== */}
+      {galat && !loading && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span className="flex-1">
+            <b>Data gagal dimuat:</b> {galat} Jika ini terus terjadi, hubungi Super Admin.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-amber-400 bg-white text-amber-800 hover:bg-amber-100"
+            onClick={() => {
+              setLoading(true);
+              muatUlang();
+            }}
+          >
+            Coba Lagi
+          </Button>
+        </div>
+      )}
 
       {/* ===== Grid kartu ===== */}
       {loading ? (

@@ -85,6 +85,19 @@ export interface VerifyDTO {
   qrCodeId: string;
 }
 
+/** Hasil verifikasi surat terbit via NIK pemohon (akses publik). */
+export interface SuratNikDTO {
+  pengajuanId: string;
+  nomorSurat: string;
+  jenisNama: string;
+  judulPengajuan: string;
+  pemohonNama: string;
+  asalInstansi: string | null;
+  tglTerbit: string;
+  namaKadis: string;
+  adaBerkas: boolean;
+}
+
 export interface Store {
   // jenis rekomendasi
   listJenis(activeOnly: boolean): Promise<JenisRekomDTO[]>;
@@ -128,6 +141,11 @@ export interface Store {
   // statistik & verifikasi publik
   stats(): Promise<StatsDTO>;
   verifySurat(qrCodeId: string): Promise<VerifyDTO | null>;
+
+  /** Verifikasi publik via NIK: daftar surat TERBIT milik pemohon dengan NIK tsb. */
+  verifikasiNik(nik: string): Promise<SuratNikDTO[]>;
+  /** Path berkas surat terbit di bucket rekom-terbit bila id + NIK cocok & status terbit. */
+  berkasTerbitNik(id: string, nik: string): Promise<string | null>;
 
   /** Muat pengajuan tanpa konteks user (khusus server: render PDF / kebutuhan internal). */
   getPengajuanInternal(id: string): Promise<PengajuanDTO | null>;

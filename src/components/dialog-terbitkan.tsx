@@ -4,7 +4,7 @@
 // Berkas surat terbit WAJIB berasal dari Storage bucket "rekom-terbit":
 //  - pilih dari daftar berkas yang sudah ada di folder (mis. diunggah via Supabase Dashboard), atau
 //  - unggah scan/PDF hasil tanda tangan langsung dari dialog ini (masuk ke rekom-terbit/{kode}/).
-// Mode Demo (tanpa Supabase): unggah via /api/upload seperti dokumen pendukung.
+// Mode Demo (tanpa Supabase): unggah via /api/unggah seperti dokumen pendukung.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, HardDriveUpload, Loader2, CheckCircle2, RefreshCcw, TriangleAlert } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -144,7 +144,7 @@ export function DialogTerbitkan({
         // Mode Demo
         const form = new FormData();
         form.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: form });
+        const res = await fetch("/api/unggah", { method: "POST", body: form });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error ?? "Gagal mengunggah berkas");
         path = String(json?.data?.fileUrl ?? "");

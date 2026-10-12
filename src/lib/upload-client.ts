@@ -5,7 +5,7 @@
 //   memakai klien browser -> berkas permanen, pratinjau via signed URL.
 //   Penataan: {Nama-Pemohon--id8}/{idPengajuan}/{timestamp}-{nama-berkas}
 //   sehingga tiap pemohon punya folder sendiri berdasarkan nama.
-// - Mode Demo: unggah ke /api/upload (lokal).
+// - Mode Demo: unggah ke /api/unggah (lokal).
 import { isSupabaseConfigured } from "@/lib/config";
 import { createClient } from "@/lib/supabase/client";
 
@@ -82,7 +82,7 @@ export async function unggahBerkas(file: File, pengajuanId?: string): Promise<Ha
 
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch("/api/upload", { method: "POST", body: form });
+  const res = await fetch("/api/unggah", { method: "POST", body: form });
   const json = await res.json().catch(() => null);
   if (!res.ok) throw new Error(json?.error ?? "Gagal mengunggah dokumen");
   return {

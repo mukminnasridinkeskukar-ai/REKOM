@@ -12,6 +12,7 @@ import type {
   AdminUserDTO,
   StatsDTO,
   VerifyDTO,
+  SuratNikDTO,
 } from "@/lib/store";
 import type { SessionUser } from "@/lib/session";
 import type { JenisRekomDTO, NotificationDTO, PengajuanDTO, Status } from "@/lib/types";
@@ -634,6 +635,36 @@ export class SupabaseStore implements Store {
       qrCodeId,
     };
   }
+
+  async verifikasiNik(nik: string): Promise<SuratNikDTO[]> {
+    const supabase = await mustClient();
+    // RPC security-definer agar publik tanpa login dapat memverifikasi via NIK
+    const { data, error } = await supabase.rpc("rekom_verifikasi_nik", { p_nik: nik });
+    if (error) throw new Error(error.message);
+    const rows = (Array.isArray(data) ? data : [data]) as Array<Record<string, unknown>>;
+    return rows
+      .filter((r) => r && r.pengajuan_id)
+      .map((r) => ({
+        pengajuanId: String(r.pengajuan_id),
+        nomorSurat: String(r.nomor_surat ?? "-"),
+        jenisNama: String(r.jenis_nama ?? "-"),
+        judulPengajuan: String(r.judul_pengajuan ?? "-"),
+        pemohonNama: String(r.pemohon_nama ?? "-"),
+        asalInstansi: (r.asal_instansi as string | null) ?? null,
+        tglTerbit: String(r.tgl_terbit ?? ""),
+        namaKadis: String(r.nama_kadis ?? "Kepala Dinas Kesehatan"),
+        adaBerkas: Boolean(r.ada_berkas),
+      }));
+  }
+
+  async berkasTerbitNik(id: string, nik: string): Promise<string | null> {
+    const supabase = await mustClient();
+    // RPC security-definer: path berkas HANYA bila id + NIK cocok & status terbit
+    const { data } = await supabase.rpc("rekom_berkas_nik", { p_id: id, p_nik: nik });
+    const val = Array.isArray(data) ? data[0] : data;
+    return typeof val === "string" && val.trim() ? val.trim() : null;
+  }
+
   async getPengajuanInternal(id: string): Promise<PengajuanDTO | null> {
     // Untuk render PDF publik butuh akses internal -> coba service role bila tersedia,
     // selain itu gunakan klien user (mengikuti RLS).

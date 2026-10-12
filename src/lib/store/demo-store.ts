@@ -1,7 +1,7 @@
 // E-REKOM — Store implementasi untuk MODE DEMO (Prisma/SQLite).
 // Dipakai ketika env Supabase belum dikonfigurasi (sandbox preview / uji lokal).
 import { db } from "@/lib/db";
-import type { Store, PengajuanFilters, JenisInput, CreatePengajuanInput, DokumenMeta, ActionInput, AdminUserDTO, StatsDTO, VerifyDTO } from "@/lib/store";
+import type { Store, PengajuanFilters, JenisInput, CreatePengajuanInput, DokumenMeta, ActionInput, AdminUserDTO, StatsDTO, VerifyDTO, SuratNikDTO } from "@/lib/store";
 import type { SessionUser } from "@/lib/session";
 import type { JenisRekomDTO, NotificationDTO, PengajuanDTO, Status } from "@/lib/types";
 import { computeAksi, canRead } from "@/lib/permissions";
@@ -426,7 +426,7 @@ export class DemoStore implements Store {
     if (input.action === "terbitkan") {
       data.tglTerbit = now;
       data.qrCodeId = randomUUID();
-      // Mode demo: nilai berupa URL /api/files/... dari /api/upload; mode Supabase: path bucket rekom-terbit
+      // Mode demo: nilai berupa URL /api/files/... dari /api/unggah; mode Supabase: path bucket rekom-terbit
       data.fileRekomPdfUrl = input.fileTerbit!.trim();
     }
 
@@ -597,6 +597,43 @@ export class DemoStore implements Store {
       qrCodeId,
     };
   }
+
+  async verifikasiNik(nik: string): Promise<SuratNikDTO[]> {
+    const bersih = nik.replace(/\D/g, "");
+    if (bersih.length !== 16) return [];
+    const daftar = await db.pengajuan.findMany({
+      where: { status: "terbit", pemohon: { nik: bersih } },
+      include: {
+        jenis: { select: { namaJenis: true } },
+        pemohon: { select: { namaLengkap: true, asalInstansi: true } },
+      },
+      orderBy: { tglTerbit: "desc" },
+    });
+    const kadis = await db.user.findFirst({ where: { role: "kadis" } });
+    return daftar.map((p) => ({
+      pengajuanId: p.id,
+      nomorSurat: p.nomorSurat ?? "-",
+      jenisNama: p.jenis?.namaJenis ?? "-",
+      judulPengajuan: p.judulPengajuan,
+      pemohonNama: p.pemohon?.namaLengkap ?? "-",
+      asalInstansi: p.pemohon?.asalInstansi ?? null,
+      tglTerbit: iso(p.tglTerbit) ?? "",
+      namaKadis: kadis?.namaLengkap ?? "Kepala Dinas Kesehatan",
+      adaBerkas: Boolean(p.fileRekomPdfUrl),
+    }));
+  }
+
+  async berkasTerbitNik(id: string, nik: string): Promise<string | null> {
+    const bersih = nik.replace(/\D/g, "");
+    if (bersih.length !== 16) return null;
+    const p = await db.pengajuan.findFirst({
+      where: { id, status: "terbit", pemohon: { nik: bersih } },
+      select: { fileRekomPdfUrl: true },
+    });
+    const nilai = p?.fileRekomPdfUrl?.trim();
+    return nilai ? nilai : null;
+  }
+
   async getPengajuanInternal(id: string): Promise<PengajuanDTO | null> {
     const p = await db.pengajuan.findUnique({
       where: { id },

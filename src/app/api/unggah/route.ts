@@ -1,3 +1,6 @@
+// CATATAN: endpoint ini semula bernama /api/upload; diganti /api/unggah karena
+// sinkronisasi sandbox menghapus folder bernama "upload". Fungsinya sama.
+
 // Unggah berkas pendukung (Mode Demo) -> disimpan lokal, disajikan via /api/files/{uuid.ext}
 // Pada Mode Supabase, unggah dilakukan langsung dari browser ke Storage bucket
 // "dokumen-rekom" (lihat components/file-uploader.tsx), sehingga endpoint ini tidak dipakai.
