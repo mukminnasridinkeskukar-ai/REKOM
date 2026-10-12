@@ -145,3 +145,30 @@ Penyelesaian Task 6 (LIVE):
 - Build lokal lulus; commit 730a2a1; push OK; auto-deploy Vercel sukses (~90 dtk)
 - Verifikasi produksi: landing + login memuat "Cut Nyak Dien"; "Gajah Mada" = 0 sisa
 - Status: SELESAI — alamat kantor baru tayang di seluruh halaman
+
+---
+Task ID: 7
+Agent: Super Z (main)
+Task: Cek & rapikan dashboard 0 + verifikasi keaslian via NIK
+
+Work Log:
+- Diag produksi (diag-dashboard-prod.py): superadmin@dinkes.go.id role=Pemohon & pemohon@dinkes.go.id
+  role=Verifikator Sekretariat (TERTUKAR) -> RLS hanya tampil milik sendiri -> dashboard 0
+- Diag Supabase (diag-supabase-state.py): RPC rekom_berkas_publik ADA (SQL rekom-terbit sudah dijalankan
+  user), bucket rekom-terbit kosong, RLS anon normal
+- Fitur baru verifikasi NIK: SuratNikDTO + verifikasiNik()/berkasTerbitNik() di kedua store;
+  API POST /api/verifikasi-nik (rate limit 15/5m/IP); /api/rekom-terbit/{id}?nik= akses publik;
+  UI /verifikasi dua tab (QR | NIK) dgn kartu hasil + unduh; error NIK salah = halaman ramah
+- Dashboard-client: error muat tak lagi ditelan senyap -> banner amber + tombol Coba Lagi
+- MASALAH PLATFORM: src/app/api/upload terhapus LAGI oleh sinkronisasi sandbox (pattern folder
+  "upload") padahal ada di HEAD -> SOLUSI: rename ke /api/unggah + semua referensi (5 file)
+- SQL baru supabase-pulih-dashboard-verifikasi-nik.sql: perbaiki role 8 akun uji + RPC
+  rekom_verifikasi_nik + rekom_berkas_nik + tinjauan profil/rekap status
+- Uji: lint OK; build OK; e2e demo (agent-browser): tab NIK -> kartu TERVERIFIKASI + unduh 302;
+  NIK salah -> empty state; screenshot .smoke/uji-verifikasi-nik(-sukses).png
+- Commit ef3c0e9; PUSH GAGAL: token GitHub dicabut/ditolak (401 Bad credentials)
+
+Stage Summary:
+- Kode fitur siap & teruji lokal; MENUNGGU token GitHub baru utk push -> deploy
+- MENUNGGU user menjalankan supabase-pulih-dashboard-verifikasi-nik.sql (perbaikan dashboard
+  + mengaktifkan backend verifikasi NIK di produksi)
