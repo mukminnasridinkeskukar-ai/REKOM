@@ -204,3 +204,27 @@ Stage Summary:
   menunggu_ttd_kadis/etapas lain sesuai definisi status
 - Langkah opsional berikutnya (opsional bagi user): coba alur Kadis "Tanda Tangan & Terbitkan"
   untuk mengisi bucket rekom-terbit utk pengajuan lain yang masih menunggu TTD
+
+---
+Task ID: 8
+Agent: Super Z (main)
+Task: "masih 0" — akar masalah statistik beranda & solusi permanen
+
+Work Log:
+- Laporan user "masih 0" -> verifikasi ulang: /api/stats & /api/pengajuan sebagai super_admin
+  SUDAH benar (15 pengajuan). Yang 0 adalah kartu STATISTIK DI BERANDA (halaman publik)
+- Bukti: curl beranda produksi = "0 0 0 0" (Total Pengajuan, Surat Terbit, Menunggu Verifikasi, Jenis)
+- Akar masalah: Komponen Stats (src/app/page.tsx) -> store.stats() dihitung server-side TANPA
+  sesi (klien anon) -> RLS pengajuan_rekom tidak memberi anon akses baca -> semua count = 0;
+  catch{} menyembunyikan kegagalan
+- Semua akun produksi sudah role benar (cek /api/users): mukminnasri.dinkeskukar@gmail.com
+  = super_admin, admin.tu/kabid/kadis/verifikator sesuai
+- Solusi: RPC security definer rekom_stats_publik() (angka agregat publik, tanpa data pribadi),
+  grant anon+authenticated — file supabase-stats-publik.sql (idempotent)
+- Kode: supabase-store.stats() coba RPC dulu, fallback hitung lama (jaga masa transisi)
+- Build lulus; commit 7130573; push OK; deploy tayang (build ID ymECsrXJ9RwMMWN89xUph)
+- RPC belum ada di produksi (404 PGRST202) -> beranda tetap 0 SAMPAI user menjalankan SQL
+
+Stage Summary:
+- Dashboard login (per role) sudah benar; beranda menunggu 1 langkah user:
+  jalankan supabase-stats-publik.sql di Supabase SQL Editor -> angka beranda langsung tayang
