@@ -13,6 +13,7 @@ import type {
   StatsDTO,
   VerifyDTO,
   SuratNikDTO,
+  RekapPublikDTO,
 } from "@/lib/store";
 import type { SessionUser } from "@/lib/session";
 import type { JenisRekomDTO, NotificationDTO, PengajuanDTO, Status } from "@/lib/types";
@@ -632,6 +633,25 @@ export class SupabaseStore implements Store {
       })(),
     ]);
     return { totalPengajuan, diajukan, terbit, perluPerbaikan, terbitBulanIni, totalJenis: jenisCount };
+  }
+
+  /** Rekap publik utk popup kartu statistik beranda.
+   *  Via RPC security-definer (server beranda tanpa sesi = anon).
+   *  Bila RPC belum ada (SQL belum dijalankan) -> [] (popup kosong). */
+  async rekapPublik(): Promise<RekapPublikDTO[]> {
+    const supabase = await mustClient();
+    const { data, error } = await supabase.rpc("rekom_rekap_publik");
+    if (error || !data) return [];
+    const rows = (Array.isArray(data) ? data : [data]) as Record<string, unknown>[];
+    return rows.map((r) => ({
+      status: String(r.status ?? ""),
+      jenis: String(r.jenis ?? ""),
+      namaLengkap: String(r.nama_lengkap ?? ""),
+      programStudi: String(r.program_studi ?? ""),
+      puskesmasTujuan: String(r.puskesmas_tujuan ?? ""),
+      fakultasUniversitas: String(r.fakultas_universitas ?? ""),
+      dibuatAt: String(r.dibuat_at ?? ""),
+    }));
   }
 
   async verifySurat(qrCodeId: string): Promise<VerifyDTO | null> {

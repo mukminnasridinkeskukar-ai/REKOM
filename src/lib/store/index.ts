@@ -6,6 +6,17 @@ import type {
   PengajuanDTO,
   Status,
 } from "@/lib/types";
+
+/** Baris rekap publik utk popup kartu statistik beranda (kolom terbatas, non-sensitif). */
+export interface RekapPublikDTO {
+  status: string;
+  jenis: string;
+  namaLengkap: string;
+  programStudi: string;
+  puskesmasTujuan: string;
+  fakultasUniversitas: string;
+  dibuatAt: string;
+}
 import type { SessionUser } from "@/lib/session";
 
 export interface PengajuanFilters {
@@ -140,6 +151,8 @@ export interface Store {
 
   // statistik & verifikasi publik
   stats(): Promise<StatsDTO>;
+  /** Rekap publik (kolom terbatas) utk popup kartu statistik beranda. */
+  rekapPublik(): Promise<RekapPublikDTO[]>;
   verifySurat(qrCodeId: string): Promise<VerifyDTO | null>;
 
   /** Verifikasi publik via NIK: daftar surat TERBIT milik pemohon dengan NIK tsb. */

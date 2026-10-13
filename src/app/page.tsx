@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { Suspense } from "react";
 import { JenisIcon } from "@/components/jenis-icon";
+import { RekapStats } from "@/components/rekap-stats";
 import { getStore } from "@/lib/store";
+import type { RekapPublikDTO } from "@/lib/store";
 import { getSessionUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -150,6 +152,8 @@ async function JenisGrid() {
 
 async function Stats() {
   let s = { totalPengajuan: 0, terbit: 0, diajukan: 0, totalJenis: 0 };
+  let rekap: RekapPublikDTO[] = [];
+  let jenis: { id: string; namaJenis: string; warna: string }[] = [];
   try {
     const store = await getStore();
     const data = await store.stats();
@@ -157,24 +161,20 @@ async function Stats() {
   } catch {
     /* biarkan nol */
   }
-  const items = [
-    { nilai: s.totalPengajuan, label: "Total Pengajuan" },
-    { nilai: s.terbit, label: "Surat Terbit" },
-    { nilai: s.diajukan, label: "Menunggu Verifikasi" },
-    { nilai: s.totalJenis, label: "Jenis Rekomendasi" },
-  ];
-  return (
-    <section className="border-y border-slate-200 bg-white">
-      <div className="mx-auto grid max-w-5xl grid-cols-2 gap-6 px-4 py-10 sm:grid-cols-4 sm:px-6">
-        {items.map((i) => (
-          <div key={i.label} className="text-center">
-            <p className="text-3xl font-extrabold text-brand">{i.nilai}</p>
-            <p className="mt-1 text-xs font-medium text-muted-foreground">{i.label}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+  try {
+    const store = await getStore();
+    rekap = await store.rekapPublik();
+  } catch {
+    rekap = [];
+  }
+  try {
+    const store = await getStore();
+    const j = await store.listJenis(true);
+    jenis = j.map((x) => ({ id: x.id, namaJenis: x.namaJenis, warna: x.warna }));
+  } catch {
+    jenis = [];
+  }
+  return <RekapStats stats={s} rekap={rekap} jenis={jenis} />;
 }
 
 function Alur() {

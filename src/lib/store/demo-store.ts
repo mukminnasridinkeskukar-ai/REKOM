@@ -1,7 +1,7 @@
 // E-REKOM — Store implementasi untuk MODE DEMO (Prisma/SQLite).
 // Dipakai ketika env Supabase belum dikonfigurasi (sandbox preview / uji lokal).
 import { db } from "@/lib/db";
-import type { Store, PengajuanFilters, JenisInput, CreatePengajuanInput, DokumenMeta, ActionInput, AdminUserDTO, StatsDTO, VerifyDTO, SuratNikDTO } from "@/lib/store";
+import type { Store, PengajuanFilters, JenisInput, CreatePengajuanInput, DokumenMeta, ActionInput, AdminUserDTO, StatsDTO, VerifyDTO, SuratNikDTO, RekapPublikDTO } from "@/lib/store";
 import type { SessionUser } from "@/lib/session";
 import type { JenisRekomDTO, NotificationDTO, PengajuanDTO, Status } from "@/lib/types";
 import { computeAksi, canRead } from "@/lib/permissions";
@@ -572,6 +572,37 @@ export class DemoStore implements Store {
         db.jenisRekom.count({ where: { isActive: true } }),
       ]);
     return { totalPengajuan, diajukan, terbit, perluPerbaikan, terbitBulanIni, totalJenis };
+  }
+
+  /** Rekap publik (kolom terbatas) utk popup kartu statistik beranda — mode demo. */
+  async rekapPublik(): Promise<RekapPublikDTO[]> {
+    const rows = await db.pengajuan.findMany({
+      include: {
+        jenis: { select: { namaJenis: true } },
+        pemohon: { select: { namaLengkap: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+    });
+    return rows.map((p) => {
+      let f: Record<string, unknown> = {};
+      try {
+        f = JSON.parse(p.dataFormJson || "{}") as Record<string, unknown>;
+      } catch {
+        f = {};
+      }
+      const s = (k: string) => (typeof f[k] === "string" ? (f[k] as string) : "");
+      return {
+        status: p.status,
+        jenis: p.jenis?.namaJenis ?? "",
+        namaLengkap: s("nama_lengkap") || p.pemohon?.namaLengkap || "",
+        programStudi: s("program_studi"),
+        puskesmasTujuan: s("puskesmas_tujuan"),
+        fakultasUniversitas:
+          s("fakultas_dan_universitas") || s("universitas_tujuan") || s("fakultas") || s("universitas"),
+        dibuatAt: p.createdAt.toISOString(),
+      };
+    });
   }
 
   async verifySurat(qrCodeId: string): Promise<VerifyDTO | null> {
