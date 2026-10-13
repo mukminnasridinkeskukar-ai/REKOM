@@ -228,3 +228,32 @@ Work Log:
 Stage Summary:
 - Dashboard login (per role) sudah benar; beranda menunggu 1 langkah user:
   jalankan supabase-stats-publik.sql di Supabase SQL Editor -> angka beranda langsung tayang
+
+---
+Task ID: 9
+Agent: Super Z (main)
+Task: Pengembangan — kartu statistik beranda jadi lightbox/popup + rincian per jenis
+
+Work Log:
+- Dump data produksi: kolom formulir nyata = nama_lengkap, program_studi, puskesmas_tujuan,
+  fakultas_dan_universitas (gabungan), universitas_tujuan (beberapa jenis)
+- SQL baru supabase-rekap-publik.sql: RPC security-definer rekom_rekap_publik() — kolom
+  TERBATAS non-sensitif (status, jenis, nama, prodi, puskesmas, fakultas&univ, tgl); NIK/HP/
+  alamat/email TIDAK ikut; grant anon+authenticated; idempotent
+- Store: RekapPublikDTO + rekapPublik() di interface; supabase-store via RPC (error -> []);
+  demo-store via Prisma (parse dataFormJson + fallback nama pemohon)
+- UI: komponen client rekap-stats.tsx — 4 kartu klikabel (hover "klik untuk rincian"),
+  Dialog popup: Total Pengajuan/Surat Terbit/Menunggu Verifikasi = tabel 4 kolom + kotak
+  cari + hitung data; Jenis Rekomendasi = daftar jumlah per jenis (dgn jenis aktif bernilai 0)
+- page.tsx Stats: ambil stats + rekap + jenis (try/catch terpisah), render <RekapStats/>
+- Uji lokal: build OK; lint OK; agent-browser — popup Total (tabel+8 data), Jenis (5 jenis dgn
+  badge jumlah), Surat Terbit (hanya baris terbit), cari "Andi"->1 baris, "zzzz"->kosong;
+  screenshot .smoke/uji-popup-(tabel|jenis|terbit|cari).png
+- Catatan: sandbox .env berisi kredensial Supabase -> dev lokal memakai supabase-store,
+  popup lokal kosong sebelum SQL (perilaku benar); tabel teruji via mode demo dipaksa
+- Commit 6f05bb3; push OK; deploy tayang ('klik untuk rincian' = 4 kartu di produksi)
+
+Stage Summary:
+- Fitur popup rekap LIVE di beranda produksi; MENUNGGU user menjalankan SQL:
+  supabase-stats-publik.sql (angka beranda) + supabase-rekap-publik.sql (isi popup)
+- Setelah SQL dijalankan: angka & popup langsung terisi tanpa deploy ulang
